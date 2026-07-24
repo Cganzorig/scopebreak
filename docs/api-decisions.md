@@ -34,3 +34,24 @@ Official sources consulted:
 - <https://control-arena.aisi.org.uk/reference/>
 - <https://pypi.org/project/inspect-ai/>
 - <https://pypi.org/project/control-arena/>
+
+## Phase 2 baseline
+
+Exact command:
+
+```bash
+uv run python scripts/verify_phase2.py
+```
+
+The first evaluation follows the current official Inspect `Task` + `Sample` +
+`generate` + scorer pattern and uses `mockllm`, avoiding any API call. The
+second exercises the current `basic_agent`, `bash` tool, local sandbox, scorer,
+and `.eval` logging APIs with deterministic MockLLM tool calls. The log is
+reopened through `inspect_ai.log.read_eval_log` and checked for assistant tool
+calls, tool results, and scores.
+
+ControlArena 17.1.2 no longer frames the trajectory controller as a generic
+"protocol" object. The supported abstraction is a micro-protocol, and custom
+environments subclass `control_arena.settings.Setting`. The Phase 2 verifier
+imports `ControlEvalConfig`, `get_control_task`, and `Setting`; the custom
+setting will use those current entry points.
