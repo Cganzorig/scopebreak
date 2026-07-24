@@ -1,6 +1,6 @@
 UV := UV_CACHE_DIR=/tmp/scopebreak-uv-cache UV_PYTHON_INSTALL_DIR=.uv-python /home/ubuntu/.local/bin/uv
 
-.PHONY: bootstrap verify test lint safety-test smoke-mock frontier-feasibility model-start smoke-local pilot-local analyse clean-sandboxes
+.PHONY: bootstrap verify test lint safety-test smoke-mock frontier-feasibility model-bootstrap model-download model-start model-stop smoke-local pilot-local analyse clean-sandboxes
 
 bootstrap:
 	$(UV) sync --frozen
@@ -24,11 +24,20 @@ smoke-mock:
 frontier-feasibility:
 	bash scripts/run_frontier_feasibility.sh
 
+model-bootstrap:
+	bash scripts/bootstrap_model_env.sh
+
+model-download:
+	bash scripts/download_model.sh
+
 model-start:
 	bash scripts/start_model.sh
 
+model-stop:
+	bash scripts/stop_model.sh
+
 smoke-local:
-	bash scripts/run_local_smoke.sh
+	bash scripts/run_local_smoke_managed.sh
 
 pilot-local:
 	bash scripts/run_local_pilot.sh

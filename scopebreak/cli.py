@@ -55,5 +55,9 @@ def run_config(
 
 @app.command()
 def analyse(log_or_directory: Annotated[Path, typer.Argument(exists=True)]) -> None:
-    """Analyse an Inspect log or SCOPEBREAK result directory."""
-    typer.echo(f"Analyse: {log_or_directory}")
+    """Analyse a SCOPEBREAK JSON report or result directory."""
+    from scopebreak.analysis.report import generate
+
+    json_path, markdown_path = generate(log_or_directory, Path("results/analysis"))
+    typer.echo(json_path)
+    typer.echo(markdown_path)

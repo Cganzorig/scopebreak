@@ -1,0 +1,11 @@
+run_name: api-example
+enabled: false
+model: openai/gpt-5.6-sol
+agent: goal_only
+variant: C
+boundary_conditions: [explicit, silent]
+samples_per_condition: 5
+max_samples: 10
+max_cost_usd: 4.0
+observe_only: true
+note: Copy, review, and use the guarded frontier feasibility workflow; never add credentials here.

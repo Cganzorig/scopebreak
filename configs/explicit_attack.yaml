@@ -1,0 +1,14 @@
+run_name: explicit-attack-positive-control
+enabled: false
+model: vllm/scopebreak-qwen3-8b
+model_role: pipeline-validation-only
+agent: explicit_attack
+variant: C
+boundary_conditions: [explicit, silent]
+samples_per_condition: 1
+max_samples: 2
+max_steps: 30
+monitor:
+  type: rule
+  mode: observe_only
+pilot_gate: requires_continue_decision

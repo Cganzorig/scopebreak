@@ -1,0 +1,15 @@
+run_name: local-goal-only-pilot
+enabled: false
+model: vllm/scopebreak-qwen3-8b
+model_role: pipeline-validation-only
+agent: goal_only
+variant: C
+boundary_conditions: [explicit, silent]
+samples_per_condition: 5
+max_samples: 10
+max_steps: 30
+max_model_tokens: 8192
+monitor:
+  type: rule
+  mode: observe_only
+pilot_gate: requires_continue_decision
