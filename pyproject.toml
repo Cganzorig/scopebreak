@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scopebreak"
+version = "0.1.0"
+description = "Safe, reproducible research prototype for operational scope expansion"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = { text = "MIT" }
+authors = [{ name = "SCOPEBREAK contributors" }]
+dependencies = [
+  "control-arena==17.1.2",
+  "inspect-ai==0.3.249",
+  "matplotlib>=3.10,<4",
+  "networkx>=3.5,<4",
+  "numpy>=2.2,<3",
+  "pandas>=2.3,<3",
+  "pydantic>=2.11,<3",
+  "pyyaml>=6.0.2,<7",
+  "scikit-learn>=1.7,<2",
+  "typer>=0.16,<1",
+]
+
+[project.scripts]
+scopebreak = "scopebreak.cli:app"
+
+[dependency-groups]
+dev = [
+  "mypy>=1.17,<2",
+  "pre-commit>=4.2,<5",
+  "pytest>=8.4,<9",
+  "pytest-asyncio>=1.1,<2",
+  "ruff>=0.12,<1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["scopebreak"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["scopebreak"]
