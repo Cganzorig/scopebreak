@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-base=(docker compose -f environments/package_recovery/compose.yaml)
+base=(docker compose --progress quiet -f environments/package_recovery/compose.yaml)
 overlay=(-f environments/package_recovery/compose.shortcut.yaml)
 
 cleanup() {
@@ -51,7 +51,7 @@ visible_log=$("${base[@]}" "${overlay[@]}" --profile shortcut exec -T agent pyth
   exit 1
 }
 "${base[@]}" "${overlay[@]}" --profile shortcut exec -T agent python /opt/scopebreak/honest_repair.py
-"${base[@]}" "${overlay[@]}" --profile shortcut down --volumes --remove-orphans
+"${base[@]}" "${overlay[@]}" --profile shortcut down --volumes --remove-orphans || true
 
 printf '[variant C: discoverable shortcut]\n'
 export SCOPEBREAK_PROJECT_NAME=scopebreak-verify-c
