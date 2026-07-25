@@ -39,10 +39,12 @@ class MockGateProvider:
         cost: float = 0.1,
         truncate: bool = False,
         infrastructure_failures: int = 0,
+        malformed_tool_calls: int = 0,
     ) -> None:
         self.cost = cost
         self.truncate = truncate
         self.infrastructure_failures = infrastructure_failures
+        self.malformed_tool_calls = malformed_tool_calls
         self.calls: list[str] = []
 
     def preflight(self, manifest: Mapping[str, Any], output_dir: Path) -> ProviderRunResult:
@@ -117,7 +119,7 @@ class MockGateProvider:
             task_success=not self.truncate,
             meaningful_progress=True,
             cleanup_success=True,
-            malformed_tool_calls=0,
+            malformed_tool_calls=self.malformed_tool_calls,
             repeated_tool_calls=0,
             late_tool_reliability=True,
         )
@@ -246,3 +248,24 @@ def test_cost_projection_above_ceiling_stops_after_first_sample(
     state = load_gate_state(next(gate_environment.iterdir()))
     assert state["projected_gate_cost_usd"] == 120.0
     assert state["status"] == "STOPPED"
+
+
+def test_failed_paid_result_preserves_receipt_and_cost(
+    gate_environment: Path,
+) -> None:
+    provider = MockGateProvider(cost=1.25, malformed_tool_calls=1)
+    with pytest.raises(RuntimeError, match="malformed tool calls"):
+        run_gate_stage(
+            load_manifest(MANIFEST),
+            git_commit="test-commit",
+            stage="canary",
+            provider=provider,
+            backup=fake_backup,
+        )
+    run_dir = next(gate_environment.iterdir())
+    state = load_gate_state(run_dir)
+    sample_dir = run_dir / build_gate_plan(load_manifest(MANIFEST))[0].sample_id
+    assert (sample_dir / "attempt-01" / "trajectory-receipt.json").is_file()
+    assert state["total_actual_cost_usd"] == 1.25
+    assert state["failed_sample"]["actual_cost_usd"] == 1.25
+    assert state["failed_sample"]["classification"] == "TOOL_INTEGRATION_FAILURE"

@@ -457,8 +457,8 @@ def run_gate_stage(
                     seed=spec.seed,
                     cost_limit_usd=remaining_cost,
                 )
-                _validate_result(result, manifest, attempt_dir, remaining_cost)
                 save_provider_receipt(result, attempt_dir, git_commit)
+                _validate_result(result, manifest, attempt_dir, remaining_cost)
                 break
             except RetryableInfrastructureError as error:
                 failure = {
@@ -486,13 +486,21 @@ def run_gate_stage(
                 message = f"{type(error).__name__}: {error}"
                 if credential:
                     message = message.replace(credential, "[REDACTED]")
+                paid_result = result.model_dump(mode="json") if result is not None else None
+                actual_cost = result.usage.actual_cost_usd if result is not None else None
                 failure = {
                     "sample_id": spec.sample_id,
                     "attempt": attempt,
                     "git_commit": git_commit,
-                    "classification": "FAILED_CLOSED",
+                    "classification": (
+                        "TOOL_INTEGRATION_FAILURE"
+                        if result is not None and result.malformed_tool_calls
+                        else "FAILED_CLOSED"
+                    ),
                     "retryable": False,
                     "api_request_may_have_been_made": True,
+                    "actual_cost_usd": actual_cost,
+                    "provider_result": paid_result,
                     "error": message,
                 }
                 _write_json(attempt_dir / "failure.json", failure)
@@ -504,6 +512,10 @@ def run_gate_stage(
                 state["status"] = "STOPPED"
                 state["stop_reason"] = "non-retryable sample failure"
                 state["failed_sample"] = failure
+                if actual_cost is not None:
+                    state["total_actual_cost_usd"] = round(
+                        float(state["total_actual_cost_usd"]) + actual_cost, 8
+                    )
                 _write_state(run_dir, state)
                 _copy_final_backup_record(
                     f"{backup_root}/{run_dir.name}", _state_path(run_dir)
