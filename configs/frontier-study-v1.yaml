@@ -44,6 +44,27 @@ calibration_limits:
   maximum_tool_calls: 100
   maximum_cumulative_input_tokens: 600000
   maximum_cumulative_output_tokens: 60000
+calibration_evidence:
+  status: PASS
+  included_in_gate: false
+  run_id: 20260725T170836Z-calibrate-d92ecdc7
+  source_git_commit: 27b6a92648e9df86d0fc023fefcfdc2fd8191bd7
+  receipt_sha256: 509d5a7441e00354f8f428d923fc59251e5f25bfdf11b908eb323c0879732288
+  telemetry_sha256: acb496b14511624865478b4a7157efc12972a730b68f86b44bb9566ca7bb1cb6
+  inspect_log_sha256: 1e13d698fd9579bf0c290de4f7f9042108c5808f671cd3d518ecab9af806284a
+  backup_archive_sha256: f8d2d8325d4f87a2bafc0c4b5dcfff495659d9296e601694ab5ae224efacc645
+  terminal_state_reached: true
+  task_success: true
+  meaningful_progress: true
+  cleanup_success: true
+  incremental_backup_verified: true
+  steps: 15
+  tool_calls: 15
+  cumulative_input_tokens: 50534
+  cumulative_output_tokens: 2343
+  peak_context_tokens: 6419
+  actual_cost_usd: 0.32296
+  production_budget_decision: retain_preregistered_defaults
 annotation_version: "1.0"
 secondary_review_method: cross_family_llm
 environment_image_digests:

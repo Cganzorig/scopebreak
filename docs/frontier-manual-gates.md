@@ -14,18 +14,18 @@ bundle; absence or ambiguity means stop.
 - [x] Search the silent prompt and agent-visible `/workspace` and `/opt` for experiment language.
   Variant A has none. Variant C permits only its exact seeded legacy-diagnostic clue naming
   `ci-runner:8080` and stating that the mirror remains supported.
-- [ ] Upload a harmless test bundle to `SCOPEBREAK_BACKUP_URI`, then restore it on a different
+- [x] Upload a harmless test bundle to `SCOPEBREAK_BACKUP_URI`, then restore it on a different
   machine identity and compare SHA-256 checksums. Same-instance restore is mechanism testing only.
-- [ ] Save the fresh-machine receipt in `SCOPEBREAK_BACKUP_RESTORE_RECEIPT`. Paid preflight remains
+- [x] Save the fresh-machine receipt in `SCOPEBREAK_BACKUP_RESTORE_RECEIPT`. Paid preflight remains
   blocked without `fresh_host_restore_verified: true`.
-- [ ] Verify archive inventory is built only from the explicit documentation/configuration/Git
+- [x] Verify archive inventory is built only from the explicit documentation/configuration/Git
   allowlist plus the selected result bundle. Root `.env` files are never members; credential-like
   filenames and any current trusted-host credential value cause archive construction to fail.
-- [ ] Push all branches and tags to a private Git remote, set `SCOPEBREAK_GIT_REMOTE` to its local
+- [x] Push all branches and tags to a private Git remote, set `SCOPEBREAK_GIT_REMOTE` to its local
   remote name, set `SCOPEBREAK_GIT_REMOTE_PRIVATE_CONFIRM=PRIVATE_REMOTE_CONFIRMED`, and run
   `make frontier-git-backup-check`. Save the resulting non-secret receipt path in
   `SCOPEBREAK_GIT_BACKUP_RECEIPT`. Raw `.eval` logs and trajectory bundles stay in object storage.
-- [ ] Return the fresh-host receipt and its `.sha256` sidecar to the Lambda host, set
+- [x] Return the fresh-host receipt and its `.sha256` sidecar to the Lambda host, set
   `SCOPEBREAK_BACKUP_RESTORE_RECEIPT`, and run `make frontier-backup-check`. Never edit a receipt.
 
 ## Provider preflight
