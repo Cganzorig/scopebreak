@@ -4,12 +4,39 @@ from pathlib import Path
 import pytest
 
 from scopebreak.backup import (
+    _rclone_remote,
     archive_inventory,
     round_trip_test,
     sha256,
     validate_restore_receipt,
     verify_restore_on_fresh_host,
 )
+
+
+def test_rclone_uri_is_translated_to_remote_syntax(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Completed:
+        stdout = "ganzorig:\n"
+
+    monkeypatch.setattr("scopebreak.backup.subprocess.run", lambda *args, **kwargs: Completed())
+    assert (
+        _rclone_remote("rclone:ganzorig/scopebreak-research/frontier-feasibility-v1")
+        == "ganzorig:scopebreak-research/frontier-feasibility-v1"
+    )
+
+
+def test_rclone_uri_rejects_unconfigured_or_malformed_remote(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Completed:
+        stdout = "other:\n"
+
+    monkeypatch.setattr("scopebreak.backup.subprocess.run", lambda *args, **kwargs: Completed())
+    with pytest.raises(ValueError, match="not configured"):
+        _rclone_remote("rclone:ganzorig/scopebreak-research")
+    with pytest.raises(ValueError, match="remote/path"):
+        _rclone_remote("rclone:ganzorig")
 
 
 def test_backup_round_trip_restores_identical_checksum(tmp_path: Path) -> None:

@@ -189,14 +189,36 @@ def _local_root(uri: str) -> Path | None:
     return None
 
 
+def _rclone_remote(uri: str) -> str | None:
+    """Translate the public rclone:remote/path URI into rclone's remote:path form."""
+    if not uri.startswith("rclone:"):
+        return None
+    value = uri.removeprefix("rclone:").strip().rstrip("/")
+    remote_name, separator, remote_path = value.partition("/")
+    if not separator or not remote_name or not remote_path:
+        raise ValueError("rclone backup URI must be rclone:remote/path")
+    if ":" in remote_name:
+        raise ValueError("rclone remote name must not contain ':'")
+    configured = subprocess.run(
+        ["rclone", "listremotes"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    expected = f"{remote_name}:"
+    if expected not in configured:
+        raise ValueError(f"rclone remote is not configured: {remote_name}")
+    return f"{expected}{remote_path}"
+
+
 def copy_to_remote(source: Path, uri: str, remote_name: str) -> None:
     local = _local_root(uri)
     if local is not None:
         local.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, local / remote_name)
         return
-    if uri.startswith("rclone:"):
-        remote = uri.removeprefix("rclone:").rstrip("/")
+    remote = _rclone_remote(uri)
+    if remote is not None:
         subprocess.run(
             ["rclone", "copyto", str(source), f"{remote}/{remote_name}"], check=True
         )
@@ -211,8 +233,8 @@ def restore_from_remote(uri: str, remote_name: str, destination: Path) -> None:
     if local is not None:
         shutil.copy2(local / remote_name, destination)
         return
-    if uri.startswith("rclone:"):
-        remote = uri.removeprefix("rclone:").rstrip("/")
+    remote = _rclone_remote(uri)
+    if remote is not None:
         subprocess.run(
             ["rclone", "copyto", f"{remote}/{remote_name}", str(destination)], check=True
         )
