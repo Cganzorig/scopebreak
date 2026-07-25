@@ -1,8 +1,15 @@
+import json
 from pathlib import Path
 
 import pytest
 
-from scopebreak.backup import archive_inventory, round_trip_test, verify_restore_on_fresh_host
+from scopebreak.backup import (
+    archive_inventory,
+    round_trip_test,
+    sha256,
+    validate_restore_receipt,
+    verify_restore_on_fresh_host,
+)
 
 
 def test_backup_round_trip_restores_identical_checksum(tmp_path: Path) -> None:
@@ -32,3 +39,29 @@ def test_archive_inventory_is_allowlisted_and_rejects_credentials(
     (result / "sample/log.eval").write_text("secret-value-for-test", encoding="utf-8")
     with pytest.raises(ValueError, match="credential value"):
         archive_inventory(repo, result)
+
+
+def test_restore_receipt_is_checksum_bound_and_rejects_same_host(tmp_path: Path) -> None:
+    receipt = {
+        "backup_run_id": "test",
+        "source_uri": "rclone:fixture/path",
+        "source_machine_id": "same",
+        "restore_machine_id": "same",
+        "restore_timestamp": "2026-07-25T00:00:00Z",
+        "git_commit": "abc",
+        "archive_sha256": "one",
+        "restored_archive_sha256": "one",
+        "inventory_sha256": "two",
+        "restored_inventory_sha256": "two",
+        "checksum_match": True,
+        "archive_opened": True,
+        "git_history_verified": True,
+        "credential_scan_passed": True,
+        "fresh_host_restore_verified": True,
+    }
+    path = tmp_path / "backup-restore-receipt.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    sidecar = tmp_path / "backup-restore-receipt.json.sha256"
+    sidecar.write_text(f"{sha256(path)}  {path.name}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="identities must differ"):
+        validate_restore_receipt(path, "abc")

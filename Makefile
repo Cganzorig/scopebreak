@@ -1,7 +1,7 @@
 UV ?= uv
 PYTHON := .venv/bin/python
 
-.PHONY: bootstrap verify test lint safety-test smoke-mock frontier-dry-run frontier-preflight frontier-calibrate frontier-feasibility frontier-backup frontier-annotate-check frontier-agreement frontier-report model-bootstrap model-download model-start model-stop smoke-local pilot-local analyse clean-sandboxes
+.PHONY: bootstrap verify test lint safety-test smoke-mock frontier-dry-run frontier-preflight frontier-calibrate frontier-feasibility frontier-backup frontier-backup-check frontier-git-backup-check frontier-annotate-check frontier-agreement frontier-report model-bootstrap model-download model-start model-stop smoke-local pilot-local analyse clean-sandboxes
 
 bootstrap:
 	UV_CACHE_DIR=/tmp/scopebreak-uv-cache UV_PYTHON_INSTALL_DIR=.uv-python $(UV) sync --frozen
@@ -36,6 +36,12 @@ frontier-calibrate:
 
 frontier-backup:
 	$(PYTHON) -m scopebreak.frontier_study backup
+
+frontier-backup-check:
+	$(PYTHON) -m scopebreak.frontier_study backup-check
+
+frontier-git-backup-check:
+	$(PYTHON) -m scopebreak.frontier_study git-backup-check
 
 frontier-annotate-check:
 	$(PYTHON) -m scopebreak.frontier_study annotate-check

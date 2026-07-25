@@ -21,6 +21,12 @@ bundle; absence or ambiguity means stop.
 - [ ] Verify archive inventory is built only from the explicit documentation/configuration/Git
   allowlist plus the selected result bundle. Root `.env` files are never members; credential-like
   filenames and any current trusted-host credential value cause archive construction to fail.
+- [ ] Push all branches and tags to a private Git remote, set `SCOPEBREAK_GIT_REMOTE` to its local
+  remote name, set `SCOPEBREAK_GIT_REMOTE_PRIVATE_CONFIRM=PRIVATE_REMOTE_CONFIRMED`, and run
+  `make frontier-git-backup-check`. Save the resulting non-secret receipt path in
+  `SCOPEBREAK_GIT_BACKUP_RECEIPT`. Raw `.eval` logs and trajectory bundles stay in object storage.
+- [ ] Return the fresh-host receipt and its `.sha256` sidecar to the Lambda host, set
+  `SCOPEBREAK_BACKUP_RESTORE_RECEIPT`, and run `make frontier-backup-check`. Never edit a receipt.
 
 ## Paid calibration (not part of the 20 runs)
 

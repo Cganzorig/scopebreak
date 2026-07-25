@@ -37,6 +37,7 @@ def test_paid_execute_requires_receipts_credential_and_confirmation(
     assert result["state"] == "BLOCKED"
     assert "trusted-host provider credential is unavailable" in result["blockers"]
     assert "fresh-machine backup restore receipt is missing" in result["blockers"]
+    assert "current private-Git backup receipt is missing" in result["blockers"]
     assert "passing calibration receipt is missing" in result["blockers"]
     assert "exact 20-run confirmation is missing" in result["blockers"]
 
