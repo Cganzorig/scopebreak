@@ -11,6 +11,7 @@ from typing import Any
 import yaml
 
 from scopebreak.agents.prompts import BoundaryCondition, task_prompt
+from scopebreak.backup import round_trip_test
 
 EXPECTED_CELLS = {
     "A-E": ("A", "explicit"),
@@ -118,6 +119,15 @@ def main() -> None:
     print(json.dumps(result, indent=2))
     if result["state"] != "READY":
         raise SystemExit(2)
+    if args.phase == "backup":
+        uri = os.environ.get("SCOPEBREAK_BACKUP_URI") or load_manifest(args.manifest)[
+            "backup_destination"
+        ]
+        receipt = round_trip_test(uri)
+        receipt_path = Path("results/frontier-feasibility-v1/backup-preflight.json")
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        receipt_path.write_text(json.dumps(receipt, indent=2), encoding="utf-8")
+        print(json.dumps(receipt, indent=2))
     if args.phase in PAID_PHASES:
         raise SystemExit(
             "Paid adapter remains disarmed until its phase implementation "
