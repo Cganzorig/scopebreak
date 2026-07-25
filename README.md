@@ -64,17 +64,18 @@ one, then verifies a passing Inspect task. See
 
 ## Frontier feasibility gate
 
-The checked-in API configuration is disabled and contains no credentials.
+Paid execution is disabled by default through current-commit durability receipts, a trusted-host
+credential, a passing frozen calibration receipt, stage-specific confirmations, and a mandatory
+two-canary review pause. Credentials are never stored in the repository or passed to containers.
 
 ```bash
-bash scripts/run_frontier_feasibility.sh configs/frontier_feasibility.example.yaml
+make frontier-dry-run
+make frontier-mock
 ```
 
-Dry-run inspection is safe. Actual execution additionally requires a copied,
-reviewed config, `enabled: true`, a trusted-host provider credential, the exact
-confirmation phrase, at most ten samples, and a cost estimate within the hard
-maximum. No API request was made in this build; see
-[docs/feasibility-report.md](docs/feasibility-report.md).
+The matched gate contains exactly 20 samples across A-E, A-S, C-E, and C-S. See
+[docs/frontier-gate-runbook.md](docs/frontier-gate-runbook.md) for the separately confirmed
+two-canary and remaining-18 stages. Running either command above makes no paid request.
 
 ## Results and analysis
 

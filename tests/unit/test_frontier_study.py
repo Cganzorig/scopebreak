@@ -44,7 +44,20 @@ def test_paid_execute_requires_receipts_credential_and_confirmation(
     assert "fresh-machine backup restore receipt is missing" in result["blockers"]
     assert "current private-Git backup receipt is missing" in result["blockers"]
     assert "passing calibration receipt is missing" in result["blockers"]
-    assert "exact 20-run confirmation is missing" in result["blockers"]
+    assert "gate stage must be exactly canary or remaining" in result["blockers"]
+
+
+def test_canary_execution_requires_exact_stage_specific_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = load_manifest(MANIFEST)
+    monkeypatch.setenv("SCOPEBREAK_BACKUP_URI", "rclone:fixture/scopebreak")
+    monkeypatch.setenv("SCOPEBREAK_GATE_STAGE", "canary")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-a-real-provider-key")
+    monkeypatch.delenv("SCOPEBREAK_FRONTIER_CONFIRM", raising=False)
+    result = guard(manifest, "execute")
+    assert result["state"] == "BLOCKED"
+    assert "exact two-canary confirmation is missing" in result["blockers"]
 
 
 def test_preflight_requires_exact_separate_confirmation(

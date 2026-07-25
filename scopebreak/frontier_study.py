@@ -14,9 +14,16 @@ import yaml
 
 from scopebreak.agents.prompts import BoundaryCondition, task_prompt
 from scopebreak.backup import (
+    copy_to_remote,
     restore_guarded_archive,
+    sha256,
     upload_guarded_archive,
     validate_restore_receipt,
+)
+from scopebreak.frontier_gate import (
+    create_canary_review_receipt,
+    run_gate_stage,
+    validate_canary_review_receipt,
 )
 from scopebreak.frontier_provider import (
     FrontierProvider,
@@ -116,6 +123,25 @@ def load_manifest(path: Path) -> dict[str, Any]:
         errors.append("gate hard cost exceeds $100")
     if data.get("cost", {}).get("preflight_hard_maximum_usd", 0) <= 0:
         errors.append("preflight hard cost must be positive")
+    model = data.get("model", {})
+    if not model.get("resolved_model"):
+        errors.append("resolved model identity must be frozen after calibration")
+    if model.get("snapshot") != model.get("resolved_model"):
+        errors.append("model snapshot must equal the provider-resolved calibration identity")
+    if data.get("gate_execution") != {
+        "runner_version": "1.0",
+        "canary_samples": 2,
+        "initial_concurrency": 1,
+        "maximum_concurrency": 1,
+        "resume_requires_canary_review": True,
+    }:
+        errors.append("gate execution must freeze two sequential canaries and concurrency one")
+    if data.get("retry") != {
+        "provider_attempts": 2,
+        "infrastructure_sample_retries": 1,
+        "behavioural_retries": 0,
+    }:
+        errors.append("retry policy differs from the frozen infrastructure-only policy")
     calibration = data.get("calibration_limits", {})
     if calibration != {
         "maximum_steps": 100,
@@ -133,6 +159,44 @@ def load_manifest(path: Path) -> dict[str, Any]:
     if errors:
         raise ValueError("; ".join(errors))
     return data
+
+
+def validate_frozen_calibration(
+    manifest: dict[str, Any], receipt_path: Path
+) -> dict[str, Any]:
+    """Validate the successful calibration against its source commit and frozen hash."""
+    evidence = manifest.get("calibration_evidence", {})
+    if evidence.get("status") != "PASS" or evidence.get("included_in_gate") is not False:
+        raise ValueError("manifest does not contain passing excluded calibration evidence")
+    if sha256(receipt_path) != evidence.get("receipt_sha256"):
+        raise ValueError("calibration receipt differs from the frozen evidence hash")
+    payload = validate_provider_receipt(
+        receipt_path,
+        phase="calibration",
+        git_commit=str(evidence.get("source_git_commit", "")),
+        manifest=manifest,
+    )
+    if payload.get("resolved_model") != manifest["model"]["resolved_model"]:
+        raise ValueError("calibration resolved model differs from the frozen manifest")
+    expected = {
+        "terminal_state_reached": payload.get("terminal_state_reached"),
+        "task_success": payload.get("task_success"),
+        "meaningful_progress": payload.get("meaningful_progress"),
+        "cleanup_success": payload.get("cleanup_success"),
+        "steps": payload.get("steps"),
+        "tool_calls": payload.get("tool_calls"),
+        "cumulative_input_tokens": payload.get("usage", {}).get(
+            "cumulative_input_tokens"
+        ),
+        "cumulative_output_tokens": payload.get("usage", {}).get(
+            "cumulative_output_tokens"
+        ),
+        "peak_context_tokens": payload.get("usage", {}).get("peak_context_tokens"),
+        "actual_cost_usd": payload.get("usage", {}).get("actual_cost_usd"),
+    }
+    if any(evidence.get(key) != value for key, value in expected.items()):
+        raise ValueError("calibration receipt metrics differ from frozen manifest evidence")
+    return payload
 
 
 def guard(manifest: dict[str, Any], phase: str) -> dict[str, Any]:
@@ -203,16 +267,32 @@ def guard(manifest: dict[str, Any], phase: str) -> dict[str, Any]:
             blockers.append("20-run execution remains disabled")
         calibration_receipt = Path(os.getenv("SCOPEBREAK_CALIBRATION_RECEIPT", ""))
         try:
-            validate_provider_receipt(
-                calibration_receipt,
-                phase="calibration",
-                git_commit=current_commit(),
-                manifest=manifest,
-            )
+            validate_frozen_calibration(manifest, calibration_receipt)
         except (OSError, ValueError, json.JSONDecodeError):
             blockers.append("passing calibration receipt is missing")
-        if os.getenv("SCOPEBREAK_FRONTIER_CONFIRM") != manifest["confirmation_phrase"]:
-            blockers.append("exact 20-run confirmation is missing")
+        stage = os.getenv("SCOPEBREAK_GATE_STAGE", "")
+        if stage not in {"canary", "remaining"}:
+            blockers.append("gate stage must be exactly canary or remaining")
+        elif stage == "canary":
+            if os.getenv("SCOPEBREAK_GATE_RUN_DIR"):
+                blockers.append("canary stage must create a new immutable run")
+            if os.getenv("SCOPEBREAK_FRONTIER_CONFIRM") != manifest.get(
+                "canary_confirmation_phrase"
+            ):
+                blockers.append("exact two-canary confirmation is missing")
+        else:
+            run_dir = Path(os.getenv("SCOPEBREAK_GATE_RUN_DIR", ""))
+            review_path = Path(os.getenv("SCOPEBREAK_CANARY_REVIEW_RECEIPT", ""))
+            try:
+                validate_canary_review_receipt(
+                    review_path, run_dir=run_dir, git_commit=current_commit()
+                )
+            except (OSError, ValueError, json.JSONDecodeError):
+                blockers.append("passing canary review receipt is missing")
+            if os.getenv("SCOPEBREAK_FRONTIER_CONFIRM") != manifest.get(
+                "remaining_confirmation_phrase"
+            ):
+                blockers.append("exact remaining-18 confirmation is missing")
     return {
         "phase": phase,
         "state": "READY" if not blockers else "BLOCKED",
@@ -323,11 +403,13 @@ def main() -> None:
             "annotate-check",
             "agreement",
             "report",
+            "canary-review",
         ),
     )
     parser.add_argument("--manifest", type=Path, default=Path("configs/frontier-study-v1.yaml"))
     args = parser.parse_args()
-    result = guard(load_manifest(args.manifest), args.phase)
+    manifest = load_manifest(args.manifest)
+    result = guard(manifest, args.phase)
     print(json.dumps(result, indent=2))
     if result["state"] != "READY":
         raise SystemExit(2)
@@ -407,10 +489,39 @@ def main() -> None:
         print(f"receipt_path={receipt_path}")
         print(json.dumps(receipt, indent=2))
     if args.phase == "execute":
-        raise SystemExit(
-            "The 20-run adapter remains disabled; this implementation authorises only "
-            "preflight and one separately confirmed calibration."
+        isolation = subprocess.run(
+            ["bash", "scripts/verify_isolation.sh"],
+            check=False,
+            capture_output=True,
+            text=True,
         )
+        if isolation.returncode != 0:
+            raise SystemExit("isolation verification failed immediately before gate execution")
+        run_dir, state = run_gate_stage(
+            manifest,
+            git_commit=current_commit(),
+            stage=os.environ["SCOPEBREAK_GATE_STAGE"],  # type: ignore[arg-type]
+            provider=InspectOpenAIProvider(),
+            run_dir_value=os.getenv("SCOPEBREAK_GATE_RUN_DIR", ""),
+            review_receipt_value=os.getenv("SCOPEBREAK_CANARY_REVIEW_RECEIPT", ""),
+        )
+        print(f"gate_run_dir={run_dir}")
+        print(json.dumps(state, indent=2))
+    if args.phase == "canary-review":
+        if os.getenv("SCOPEBREAK_CANARY_MANUAL_REVIEW_CONFIRM") != manifest.get(
+            "canary_review_confirmation_phrase"
+        ):
+            raise SystemExit("exact manual canary-review attestation is required")
+        run_dir = Path(os.getenv("SCOPEBREAK_GATE_RUN_DIR", ""))
+        reviewer = os.getenv("SCOPEBREAK_CANARY_REVIEWER", "")
+        review_receipt_path = create_canary_review_receipt(
+            run_dir, git_commit=current_commit(), reviewer_identifier=reviewer
+        )
+        uri = f"{os.environ['SCOPEBREAK_BACKUP_URI'].rstrip('/')}/{run_dir.name}"
+        copy_to_remote(review_receipt_path, uri, review_receipt_path.name)
+        sidecar = review_receipt_path.with_name(f"{review_receipt_path.name}.sha256")
+        copy_to_remote(sidecar, uri, sidecar.name)
+        print(f"receipt_path={review_receipt_path}")
 
 
 if __name__ == "__main__":

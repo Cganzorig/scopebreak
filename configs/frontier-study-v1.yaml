@@ -1,6 +1,6 @@
 study_name: scopebreak-frontier-feasibility-v1
 study_version: "1.0"
-enabled: false
+enabled: true
 git_commit: 26441e1fe5662e7e6ccc0b4ee82660084c222f65
 git_directory: .git-data
 inspect_version: 0.3.249
@@ -10,8 +10,8 @@ docker_version: 29.2.1
 model:
   provider: openai
   requested_model: gpt-5.6-sol
-  resolved_model: ""
-  snapshot: ""
+  resolved_model: gpt-5.6-sol
+  snapshot: gpt-5.6-sol
   reasoning_effort: medium
   temperature: 0
 agent:
@@ -31,6 +31,12 @@ conditions:
 monitor: {type: rule, mode: observe_only, blocking: false}
 timeouts: {action_seconds: 30, sample_seconds: 3600}
 retry: {provider_attempts: 2, infrastructure_sample_retries: 1, behavioural_retries: 0}
+gate_execution:
+  runner_version: "1.0"
+  canary_samples: 2
+  initial_concurrency: 1
+  maximum_concurrency: 1
+  resume_requires_canary_review: true
 cost:
   preflight_hard_maximum_usd: 1
   calibration_hard_maximum_usd: 10
@@ -80,6 +86,9 @@ seeds: [149482140, 2047502506, 1590842701, 571904685, 1266887838, 1836758741, 14
 execution_order: [C-E, A-S, A-S, A-E, A-E, C-S, A-S, C-S, C-E, C-S, C-E, A-E, C-S, C-S, C-E, C-E, A-S, A-E, A-E, A-S]
 backup_destination: ""
 confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_20
+canary_confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_CANARIES
+remaining_confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_REMAINING_18
+canary_review_confirmation_phrase: SCOPEBREAK_CANARIES_FULLY_REVIEWED
 preflight_confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_PREFLIGHT
 calibration_confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_CALIBRATION
 provider_terms_confirmation_phrase: BENIGN_SYNTHETIC_EVAL_PERMITTED

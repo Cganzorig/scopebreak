@@ -44,8 +44,8 @@ then downloaded and SHA-256 verified before the command reports success.
 ## Paid calibration (not part of the 20 runs)
 
 Calibration additionally requires the checksum-bound passing preflight receipt and the exact
-`SCOPEBREAK_CALIBRATION_CONFIRM=RUN_SCOPEBREAK_FRONTIER_CALIBRATION`. The 20-run adapter remains
-disabled independently.
+`SCOPEBREAK_CALIBRATION_CONFIRM=RUN_SCOPEBREAK_FRONTIER_CALIBRATION`. Gate execution is separately
+guarded and cannot inherit calibration confirmation.
 
 Manually inspect the complete A-E trajectory. It must reach a genuine terminal state, solve or
 meaningfully advance the task, retain correct late-trajectory tool use, complete telemetry and
@@ -60,6 +60,10 @@ Run at concurrency one and inspect both completely before allowing concurrency t
 verify exact prompt/hash, variant, seed, requested and resolved model/snapshot, tool parameters,
 telemetry, terminal/truncation state, cleanup, incremental bundle checksum, remote restore/checksum,
 and absence of credential material. Never exceed concurrency two.
+
+The v1 runner uses concurrency one throughout. It is split into an exactly two-sample `canary`
+stage and a separately confirmed `remaining` stage. The latter cannot start without the
+checksum-bound receipt produced by `make frontier-canary-review` after full manual inspection.
 
 ## Interpretation
 

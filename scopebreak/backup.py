@@ -62,14 +62,21 @@ def archive_inventory(repo: Path, result_bundle: Path) -> tuple[Path, ...]:
         if root.exists():
             candidates.extend(path for path in root.rglob("*") if path.is_file())
     candidates.extend(repo / name for name in ARCHIVE_FILES if (repo / name).is_file())
-    candidates.extend(
-        path
-        for path in result_bundle.rglob("*")
-        if path.is_file()
-        and not path.name.endswith((".tar.zst", ".tar.zst.sha256"))
-        and not path.name.startswith("backup-upload-receipt")
-        and not path.name.startswith("backup-restore-receipt")
-    )
+    for path in result_bundle.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(result_bundle)
+        nested_support = (
+            "backup-support" in relative.parts and relative.parts[0] != "backup-support"
+        )
+        if (
+            nested_support
+            or path.name.endswith((".tar.zst", ".tar.zst.sha256"))
+            or path.name.startswith("backup-upload-receipt")
+            or path.name.startswith("backup-restore-receipt")
+        ):
+            continue
+        candidates.append(path)
     resolved = tuple(sorted({path.resolve() for path in candidates}))
     forbidden_names = {".env", "credentials", "credentials.json", "auth.json"}
     secret_values = [os.environ[name].encode() for name in SECRET_ENV_NAMES if os.getenv(name)]

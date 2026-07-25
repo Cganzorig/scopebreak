@@ -54,13 +54,23 @@ def test_archive_inventory_is_allowlisted_and_rejects_credentials(
     repo = tmp_path / "repo"
     (repo / "docs").mkdir(parents=True)
     (repo / "results/run/sample").mkdir(parents=True)
+    (repo / "results/run/sample/backup-support").mkdir()
+    (repo / "results/run/backup-support").mkdir()
     (repo / "docs/guide.md").write_text("safe", encoding="utf-8")
     (repo / ".env").write_text("OPENAI_API_KEY=not-archived", encoding="utf-8")
     result = repo / "results/run"
     (result / "sample/log.eval").write_text("observable", encoding="utf-8")
+    (result / "sample/backup-support/scopebreak-history.bundle").write_text(
+        "nested", encoding="utf-8"
+    )
+    (result / "backup-support/scopebreak-history.bundle").write_text(
+        "selected", encoding="utf-8"
+    )
     inventory = archive_inventory(repo, result)
     assert (repo / "docs/guide.md").resolve() in inventory
     assert (repo / ".env").resolve() not in inventory
+    assert (result / "backup-support/scopebreak-history.bundle").resolve() in inventory
+    assert (result / "sample/backup-support/scopebreak-history.bundle").resolve() not in inventory
 
     monkeypatch.setenv("OPENAI_API_KEY", "secret-value-for-test")
     (result / "sample/log.eval").write_text("secret-value-for-test", encoding="utf-8")
