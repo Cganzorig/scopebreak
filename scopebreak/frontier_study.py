@@ -165,15 +165,14 @@ def main() -> None:
         )
         if mode == "upload":
             receipt = upload_guarded_archive(uri, Path.cwd(), bundle)
+            receipt_path = bundle / "backup-upload-receipt.json"
         elif mode == "restore":
-            receipt = restore_guarded_archive(
-                uri, Path("results/frontier-feasibility-v1/fresh-host-restore")
-            )
+            restore_dir = Path("results/frontier-feasibility-v1/fresh-host-restore")
+            receipt = restore_guarded_archive(uri, restore_dir)
+            receipt_path = restore_dir / "backup-restore-receipt.json"
         else:
             raise SystemExit("SCOPEBREAK_BACKUP_MODE must be upload or restore")
-        receipt_path = Path(f"results/frontier-feasibility-v1/backup-{mode}-receipt.json")
-        receipt_path.parent.mkdir(parents=True, exist_ok=True)
-        receipt_path.write_text(json.dumps(receipt, indent=2), encoding="utf-8")
+        print(f"receipt_path={receipt_path}")
         print(json.dumps(receipt, indent=2))
     if args.phase == "backup-check":
         receipt_path = Path(
