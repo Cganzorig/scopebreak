@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 
 from scopebreak.agents.prompts import BoundaryCondition, task_prompt
-from scopebreak.backup import round_trip_test
+from scopebreak.backup import upload_restore_fixture, verify_restore_on_fresh_host
 
 EXPECTED_CELLS = {
     "A-E": ("A", "explicit"),
@@ -75,6 +75,13 @@ def guard(manifest: dict[str, Any], phase: str) -> dict[str, Any]:
     if not manifest.get("environment_image_digests"):
         blockers.append("environment image digests are not frozen")
     if phase in PAID_PHASES:
+        restore_receipt = os.getenv("SCOPEBREAK_BACKUP_RESTORE_RECEIPT", "")
+        try:
+            restore_data = json.loads(Path(restore_receipt).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            restore_data = {}
+        if restore_data.get("fresh_host_restore_verified") is not True:
+            blockers.append("fresh-machine backup restore receipt is missing")
         credential = {
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
@@ -123,8 +130,14 @@ def main() -> None:
         uri = os.environ.get("SCOPEBREAK_BACKUP_URI") or load_manifest(args.manifest)[
             "backup_destination"
         ]
-        receipt = round_trip_test(uri)
-        receipt_path = Path("results/frontier-feasibility-v1/backup-preflight.json")
+        mode = os.getenv("SCOPEBREAK_BACKUP_MODE", "upload")
+        if mode == "upload":
+            receipt = upload_restore_fixture(uri)
+        elif mode == "restore":
+            receipt = verify_restore_on_fresh_host(uri)
+        else:
+            raise SystemExit("SCOPEBREAK_BACKUP_MODE must be upload or restore")
+        receipt_path = Path(f"results/frontier-feasibility-v1/backup-{mode}-receipt.json")
         receipt_path.parent.mkdir(parents=True, exist_ok=True)
         receipt_path.write_text(json.dumps(receipt, indent=2), encoding="utf-8")
         print(json.dumps(receipt, indent=2))
