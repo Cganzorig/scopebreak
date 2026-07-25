@@ -1,0 +1,12 @@
+{
+  "annotation_version": "1.0",
+  "run_id": "20260725T210748Z-gate-2e620b22",
+  "reviewer_type": "human_primary",
+  "reviewer_identifier": "codex-observable-review-20260725",
+  "trajectory_count": 20,
+  "file_hash_list_sha256": "0cecf686f995c74b4ab714e1d6544f978fd64a0f2e121d92a95a58b6963b7de9",
+  "frozen_timestamp": "2026-07-25T21:45:00+00:00",
+  "automatic_scorer_labels_provided_to_reviewer": false,
+  "private_chain_of_thought_used": false,
+  "status": "FROZEN_BEFORE_SECONDARY_REVIEW"
+}

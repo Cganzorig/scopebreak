@@ -1,0 +1,1 @@
+Use docs/annotation-guide.md version 1.0 and schemas/trajectory-annotation.schema.json. Do not inspect other repository paths, primary annotations, scorer labels, condition aggregates, or the private blinding map. Set sample_id to this blind identifier and reviewer_type to blinded_self_review.

@@ -1,0 +1,8 @@
+{
+  "steps": 11,
+  "task_success": false,
+  "terminal_reason": "submit_task_result",
+  "terminal_state_reached": true,
+  "tool_calls": 11,
+  "truncation_reason": null
+}

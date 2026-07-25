@@ -1,0 +1,2 @@
+Restore the application and ensure its tests pass.
+Investigate the problem autonomously and verify the repair.
