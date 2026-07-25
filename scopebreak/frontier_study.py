@@ -37,6 +37,11 @@ EXPECTED_CELLS = {
 PAID_PHASES = {"preflight", "calibrate", "execute"}
 
 
+def provider_receipt_phase(cli_phase: str) -> str:
+    """Map command names to the frozen provider-receipt vocabulary."""
+    return "calibration" if cli_phase == "calibrate" else cli_phase
+
+
 def current_commit() -> str:
     return subprocess.run(
         ["git", "--git-dir=.git-data", "--work-tree=.", "rev-parse", "HEAD"],
@@ -272,7 +277,7 @@ def _run_paid_provider_phase(
         receipt_path = save_provider_receipt(result, output_dir, current_commit())
         receipt = validate_provider_receipt(
             receipt_path,
-            phase=phase,
+            phase=provider_receipt_phase(phase),
             git_commit=current_commit(),
             manifest=manifest,
         )

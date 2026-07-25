@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from scopebreak.frontier_study import guard, load_manifest
+from scopebreak.frontier_study import guard, load_manifest, provider_receipt_phase
 
 MANIFEST = Path("configs/frontier-study-v1.yaml")
 
@@ -16,6 +16,11 @@ def test_frozen_manifest_has_matched_twenty_run_design(monkeypatch: pytest.Monke
     assert result["state"] == "READY"
     assert result["samples"] == 20
     assert result["api_request_made"] is False
+
+
+def test_cli_calibrate_maps_to_frozen_calibration_receipt_phase() -> None:
+    assert provider_receipt_phase("calibrate") == "calibration"
+    assert provider_receipt_phase("preflight") == "preflight"
 
 
 def test_manifest_rejects_duplicate_seed(tmp_path: Path) -> None:
