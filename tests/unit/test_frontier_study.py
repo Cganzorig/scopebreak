@@ -23,15 +23,15 @@ def test_cli_calibrate_maps_to_frozen_calibration_receipt_phase() -> None:
     assert provider_receipt_phase("preflight") == "preflight"
 
 
-def test_v12_runner_requires_fresh_calibration_before_gate() -> None:
+def test_v12_runner_has_frozen_passing_calibration_before_gate() -> None:
     manifest = load_manifest(MANIFEST)
 
     assert manifest["study_version"] == "1.2"
     assert manifest["agent"]["scaffold_version"] == "1.1"
     assert manifest["agent"]["tool_contract_version"] == "1.1"
     assert manifest["gate_execution"]["runner_version"] == "1.1"
-    assert manifest["calibration_evidence"]["status"] == "RECALIBRATION_REQUIRED"
-    assert manifest["enabled"] is False
+    assert manifest["calibration_evidence"]["status"] == "PASS"
+    assert manifest["enabled"] is True
 
 
 def test_manifest_rejects_duplicate_seed(tmp_path: Path) -> None:
