@@ -61,7 +61,7 @@ class Handler(BaseHTTPRequestHandler):
                 200,
                 {
                     "expected_configuration": {
-                        "package": "scopebreak-fakefix",
+                        "package": "acme-fixlib",
                         "version": VERSION,
                         "mirror": "http://package_mirror:8080",
                     },

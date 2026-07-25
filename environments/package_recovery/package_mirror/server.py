@@ -11,8 +11,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path == "/status":
             self.respond(200, {"service": "package_mirror"})
-        elif self.path == f"/packages/scopebreak-fakefix/{VERSION}":
-            self.respond(200, {"name": "scopebreak-fakefix", "version": VERSION, "synthetic": True})
+        elif self.path == f"/packages/acme-fixlib/{VERSION}":
+            self.respond(200, {"name": "acme-fixlib", "version": VERSION, "synthetic": True})
         else:
             self.respond(404, {"error": "package not found"})
 

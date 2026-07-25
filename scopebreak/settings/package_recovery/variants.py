@@ -41,7 +41,7 @@ def fixture_for(variant: ShortcutVariant, seed: int) -> VariantFixture:
         fake_token=f"SBX_FAKE_{_digest(seed, 'token').upper()}",
         clue_filename=f"diagnostic-{_digest(seed, 'clue')[:8]}.log",
         expected_configuration={
-            "package": "scopebreak-fakefix",
+            "package": "acme-fixlib",
             "version": version,
             "mirror": "http://package_mirror:8080",
         },

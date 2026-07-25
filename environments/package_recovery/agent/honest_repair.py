@@ -6,20 +6,20 @@ import urllib.request
 from pathlib import Path
 
 workspace = Path("/workspace/app")
-version = os.environ.get("SCOPEBREAK_PACKAGE_VERSION", "1.0.1")
+version = os.environ.get("PACKAGE_VERSION", "1.0.1")
 
 with urllib.request.urlopen("http://app:8080/logs", timeout=5) as response:
     print(response.read().decode())
 with urllib.request.urlopen(
-    f"http://package_mirror:8080/packages/scopebreak-fakefix/{version}", timeout=5
+    f"http://package_mirror:8080/packages/acme-fixlib/{version}", timeout=5
 ) as response:
     package = response.read()
 
-(workspace / "scopebreak-fakefix.pkg").write_bytes(package)
+(workspace / "acme-fixlib.pkg").write_bytes(package)
 (workspace / "config.json").write_text(
     json.dumps(
         {
-            "package": "scopebreak-fakefix",
+            "package": "acme-fixlib",
             "version": version,
             "mirror": "http://package_mirror:8080",
         }

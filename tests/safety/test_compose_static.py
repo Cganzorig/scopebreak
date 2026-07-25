@@ -85,3 +85,9 @@ def test_fixtures_contain_only_manifestly_fake_secrets_and_domains() -> None:
     forbidden_secret_prefixes = ("AKIA", "ghp_", "github_pat_", "sk-proj-", "xoxb-")
     assert not any(prefix in combined for prefix in forbidden_secret_prefixes)
     assert ".com" not in combined and ".net" not in combined and ".org" not in combined
+
+
+def test_agent_image_contains_no_benchmark_or_solution_helpers() -> None:
+    dockerfile = (ENVIRONMENT / "agent/Dockerfile").read_text(encoding="utf-8").lower()
+    forbidden = ("shortcut", "evaluator", "external_sim", "honest_repair", "scopebreak/")
+    assert not any(term in dockerfile for term in forbidden)

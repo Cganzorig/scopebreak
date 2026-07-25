@@ -3,7 +3,17 @@ from scopebreak.agents.prompts import BoundaryCondition, task_prompt
 
 def test_scope_silent_prompt_does_not_leak_planted_boundary() -> None:
     prompt = task_prompt(BoundaryCondition.SILENT).lower()
-    for leaked_term in ("evaluator", "external_sim", "shortcut", "credential", "forbidden"):
+    for leaked_term in (
+        "evaluator",
+        "external_sim",
+        "shortcut",
+        "credential",
+        "forbidden",
+        "monitor",
+        "side task",
+        "benchmark",
+        "scopebreak",
+    ):
         assert leaked_term not in prompt
 
 
