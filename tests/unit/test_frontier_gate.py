@@ -10,13 +10,16 @@ from scopebreak.agents.prompts import BoundaryCondition
 from scopebreak.frontier_gate import (
     build_gate_plan,
     create_canary_review_receipt,
+    create_provider_recovery_receipt,
     load_gate_state,
     run_gate_stage,
 )
 from scopebreak.frontier_provider import (
+    ProviderInfrastructureInterruption,
     ProviderRunResult,
     RetryableInfrastructureError,
     UsageSummary,
+    save_provider_receipt,
 )
 from scopebreak.frontier_study import load_manifest
 from scopebreak.settings.package_recovery.variants import ShortcutVariant
@@ -40,11 +43,13 @@ class MockGateProvider:
         truncate: bool = False,
         infrastructure_failures: int = 0,
         malformed_tool_calls: int = 0,
+        provider_interruptions: int = 0,
     ) -> None:
         self.cost = cost
         self.truncate = truncate
         self.infrastructure_failures = infrastructure_failures
         self.malformed_tool_calls = malformed_tool_calls
+        self.provider_interruptions = provider_interruptions
         self.calls: list[str] = []
 
     def preflight(self, manifest: Mapping[str, Any], output_dir: Path) -> ProviderRunResult:
@@ -70,6 +75,24 @@ class MockGateProvider:
         if self.infrastructure_failures:
             self.infrastructure_failures -= 1
             raise RetryableInfrastructureError("mock Docker start failure")
+        if self.provider_interruptions:
+            self.provider_interruptions -= 1
+            output_dir.mkdir(parents=True, exist_ok=False)
+            raise ProviderInfrastructureInterruption(
+                "mock provider quota failure",
+                classification="PROVIDER_QUOTA_EXHAUSTED",
+                provider_error_code="insufficient_quota",
+                usage=UsageSummary(
+                    cumulative_input_tokens=80,
+                    cumulative_output_tokens=10,
+                    reasoning_tokens=2,
+                    peak_context_tokens=80,
+                    context_tokens_by_turn=(80,),
+                    provider_latency_seconds_by_turn=(0.01,),
+                    actual_cost_usd=0.0007,
+                    cost_source="mock_recovered",
+                ),
+            )
         output_dir.mkdir(parents=True, exist_ok=False)
         inspect_log = output_dir / "inspect" / "mock.eval"
         inspect_log.parent.mkdir(parents=True)
@@ -269,3 +292,111 @@ def test_failed_paid_result_preserves_receipt_and_cost(
     assert state["total_actual_cost_usd"] == 1.25
     assert state["failed_sample"]["actual_cost_usd"] == 1.25
     assert state["failed_sample"]["classification"] == "TOOL_INTEGRATION_FAILURE"
+
+
+def test_provider_interruption_pauses_without_automatic_retry_and_recovers_once(
+    gate_environment: Path,
+) -> None:
+    del gate_environment
+    manifest = load_manifest(MANIFEST)
+    provider = MockGateProvider(provider_interruptions=1)
+    with pytest.raises(RuntimeError, match="operator recovery"):
+        run_gate_stage(
+            manifest,
+            git_commit="test-commit",
+            stage="canary",
+            provider=provider,
+            backup=fake_backup,
+        )
+    run_dir = next(gate.GATE_ROOT.iterdir())
+    paused = load_gate_state(run_dir)
+    assert provider.calls == [build_gate_plan(manifest)[0].sample_id]
+    assert paused["status"] == "PROVIDER_RECOVERY_REQUIRED"
+    assert paused["next_index"] == 0
+    assert paused["total_actual_cost_usd"] == 0.0007
+    assert paused["failed_sample"]["actual_cost_usd"] == 0.0007
+    assert paused["failed_sample"]["resume_eligible"] is True
+
+    preflight_result = MockGateProvider().run_sample(
+        manifest,
+        run_dir / "mock-preflight-provider",
+        sample_id="preflight",
+        cell="A-E",
+        variant="A",
+        boundary="explicit",
+        seed=1,
+        cost_limit_usd=1,
+    ).model_copy(
+        update={
+            "phase": "preflight",
+            "resolved_model": manifest["model"]["resolved_model"],
+        }
+    )
+    preflight = save_provider_receipt(preflight_result, run_dir / "fresh-preflight", "test-commit")
+    recovery = create_provider_recovery_receipt(
+        run_dir,
+        git_commit="test-commit",
+        reviewer_identifier="operator-test",
+        preflight_receipt=preflight,
+    )
+    _, resumed = run_gate_stage(
+        manifest,
+        git_commit="test-commit",
+        stage="recovery",
+        provider=provider,
+        backup=fake_backup,
+        run_dir_value=str(run_dir),
+        review_receipt_value=str(recovery),
+    )
+    assert resumed["status"] == "CANARY_REVIEW_REQUIRED"
+    assert resumed["next_index"] == 2
+    first = build_gate_plan(manifest)[0].sample_id
+    assert (run_dir / first / "attempt-01" / "failure.json").is_file()
+    assert (run_dir / first / "attempt-02" / "trajectory-receipt.json").is_file()
+
+
+def test_failed_provider_replacement_is_not_recoverable_again(
+    gate_environment: Path,
+) -> None:
+    del gate_environment
+    manifest = load_manifest(MANIFEST)
+    provider = MockGateProvider(provider_interruptions=2)
+    with pytest.raises(RuntimeError, match="operator recovery"):
+        run_gate_stage(
+            manifest,
+            git_commit="test-commit",
+            stage="canary",
+            provider=provider,
+            backup=fake_backup,
+        )
+    run_dir = next(gate.GATE_ROOT.iterdir())
+    preflight_result = MockGateProvider().run_sample(
+        manifest,
+        run_dir / "mock-preflight-provider",
+        sample_id="preflight",
+        cell="A-E",
+        variant="A",
+        boundary="explicit",
+        seed=1,
+        cost_limit_usd=1,
+    ).model_copy(update={"phase": "preflight"})
+    preflight = save_provider_receipt(preflight_result, run_dir / "fresh-preflight", "test-commit")
+    recovery = create_provider_recovery_receipt(
+        run_dir,
+        git_commit="test-commit",
+        reviewer_identifier="operator-test",
+        preflight_receipt=preflight,
+    )
+    with pytest.raises(RuntimeError, match="replacement attempt failed"):
+        run_gate_stage(
+            manifest,
+            git_commit="test-commit",
+            stage="recovery",
+            provider=provider,
+            backup=fake_backup,
+            run_dir_value=str(run_dir),
+            review_receipt_value=str(recovery),
+        )
+    stopped = load_gate_state(run_dir)
+    assert stopped["status"] == "STOPPED"
+    assert stopped["failed_sample"]["resume_eligible"] is False

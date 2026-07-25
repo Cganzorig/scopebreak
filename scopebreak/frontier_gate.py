@@ -18,6 +18,7 @@ from scopebreak.backup import copy_to_remote, sha256, upload_guarded_archive
 from scopebreak.frontier_provider import (
     FrontierProvider,
     FrontierRunError,
+    ProviderInfrastructureInterruption,
     ProviderRunResult,
     RetryableInfrastructureError,
     save_provider_receipt,
@@ -38,6 +39,12 @@ CANARY_REVIEW_FIELDS = (
     "incremental_backup_verified",
     "manual_full_trajectory_reviewed",
     "approve_remaining_18",
+)
+PROVIDER_RECOVERY_FIELDS = (
+    "failed_attempt_reviewed",
+    "external_provider_condition_resolved",
+    "fresh_preflight_passed",
+    "authorize_single_replacement_attempt",
 )
 
 
@@ -335,6 +342,94 @@ def validate_canary_review_receipt(
     return receipt
 
 
+def create_provider_recovery_receipt(
+    run_dir: Path,
+    *,
+    git_commit: str,
+    reviewer_identifier: str,
+    preflight_receipt: Path,
+) -> Path:
+    """Bind an operator-approved single replacement to a paused provider failure."""
+    state = load_gate_state(run_dir)
+    failure = state.get("failed_sample", {})
+    if state.get("git_commit") != git_commit or state.get("status") != (
+        "PROVIDER_RECOVERY_REQUIRED"
+    ):
+        raise ValueError("gate state is stale or not paused for provider recovery")
+    if failure.get("resume_eligible") is not True or not str(
+        reviewer_identifier
+    ).strip():
+        raise ValueError("provider failure is not eligible or reviewer identity is missing")
+    if not _checksum_valid(preflight_receipt):
+        raise ValueError("fresh provider preflight receipt checksum is invalid")
+    preflight: dict[str, Any] = json.loads(preflight_receipt.read_text(encoding="utf-8"))
+    try:
+        preflight_time = datetime.fromisoformat(str(preflight["receipt_timestamp"]))
+        failure_time = datetime.fromisoformat(str(failure["failure_timestamp"]))
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("provider recovery evidence has no valid timestamps") from error
+    if (
+        preflight.get("phase") != "preflight"
+        or preflight.get("git_commit") != git_commit
+        or preflight.get("resolved_model") != failure.get("resolved_model")
+        or preflight.get("terminal_state_reached") is not True
+        or preflight.get("tool_call_verified") is not True
+        or preflight.get("provider_errors")
+        or preflight_time <= failure_time
+    ):
+        raise ValueError("fresh preflight does not prove provider recovery")
+    receipt = {
+        "recovery_version": "1.0",
+        "run_id": run_dir.name,
+        "git_commit": git_commit,
+        "sample_id": failure.get("sample_id"),
+        "failed_attempt": failure.get("attempt"),
+        "failure_classification": failure.get("classification"),
+        "failed_attempt_archive_sha256": failure.get("backup_archive_sha256"),
+        "preflight_receipt": str(preflight_receipt),
+        "preflight_receipt_sha256": sha256(preflight_receipt),
+        "reviewer_identifier": reviewer_identifier,
+        "review_timestamp": datetime.now(UTC).isoformat(),
+        **{field: True for field in PROVIDER_RECOVERY_FIELDS},
+    }
+    path = run_dir / f"provider-recovery-{failure.get('sample_id')}.json"
+    if path.exists():
+        raise ValueError("provider recovery receipt is immutable and already exists")
+    _write_json(path, receipt)
+    write_checksum(path)
+    return path
+
+
+def validate_provider_recovery_receipt(
+    receipt_path: Path,
+    *,
+    run_dir: Path,
+    git_commit: str,
+) -> dict[str, Any]:
+    if not _checksum_valid(receipt_path):
+        raise ValueError("provider recovery receipt checksum is invalid")
+    receipt: dict[str, Any] = json.loads(receipt_path.read_text(encoding="utf-8"))
+    state = load_gate_state(run_dir)
+    failure = state.get("failed_sample", {})
+    preflight_path = Path(str(receipt.get("preflight_receipt", "")))
+    if (
+        state.get("status") != "PROVIDER_RECOVERY_REQUIRED"
+        or receipt.get("recovery_version") != "1.0"
+        or receipt.get("run_id") != run_dir.name
+        or receipt.get("git_commit") != git_commit
+        or receipt.get("sample_id") != failure.get("sample_id")
+        or receipt.get("failed_attempt") != failure.get("attempt")
+        or receipt.get("failure_classification") != failure.get("classification")
+        or receipt.get("failed_attempt_archive_sha256")
+        != failure.get("backup_archive_sha256")
+        or not _checksum_valid(preflight_path)
+        or receipt.get("preflight_receipt_sha256") != sha256(preflight_path)
+        or any(receipt.get(field) is not True for field in PROVIDER_RECOVERY_FIELDS)
+    ):
+        raise ValueError("provider recovery receipt is stale or incomplete")
+    return receipt
+
+
 def _trajectory_manifest(
     *,
     spec: GateSampleSpec,
@@ -383,7 +478,7 @@ def run_gate_stage(
     manifest: dict[str, Any],
     *,
     git_commit: str,
-    stage: Literal["canary", "remaining"],
+    stage: Literal["canary", "remaining", "recovery"],
     provider: FrontierProvider,
     backup: BackupFunction = upload_guarded_archive,
     run_dir_value: str = "",
@@ -408,7 +503,7 @@ def run_gate_stage(
         write_checksum(run_dir / "resolved-study-manifest.json")
         _write_state(run_dir, state)
         stop_index = CANARY_COUNT
-    else:
+    elif stage == "remaining":
         run_dir = _safe_existing_run_dir(run_dir_value)
         state = load_gate_state(run_dir)
         if state.get("git_commit") != git_commit or state.get(
@@ -425,21 +520,48 @@ def run_gate_stage(
         state["status"] = "RUNNING_REMAINING"
         _write_state(run_dir, state)
         stop_index = TOTAL_SAMPLES
+    else:
+        run_dir = _safe_existing_run_dir(run_dir_value)
+        state = load_gate_state(run_dir)
+        if state.get("git_commit") != git_commit or state.get(
+            "plan_sha256"
+        ) != gate_plan_sha256(plan):
+            raise ValueError("gate run state is stale or has a different plan")
+        validate_provider_recovery_receipt(
+            Path(review_receipt_value), run_dir=run_dir, git_commit=git_commit
+        )
+        stop_index = int(state.get("resume_stop_index", 0))
+        if stop_index not in {CANARY_COUNT, TOTAL_SAMPLES}:
+            raise ValueError("provider recovery has no valid frozen stage boundary")
+        state["status"] = (
+            "RUNNING_CANARIES" if stop_index == CANARY_COUNT else "RUNNING_REMAINING"
+        )
+        _write_state(run_dir, state)
 
     retry_limit = int(manifest["retry"]["infrastructure_sample_retries"])
     gate_ceiling = float(manifest["cost"]["gate_hard_maximum_usd"])
     while int(state["next_index"]) < stop_index:
         spec = plan[int(state["next_index"])]
         sample_dir = run_dir / spec.sample_id
-        sample_dir.mkdir(parents=False, exist_ok=False)
-        _write_json(sample_dir / "sample-spec.json", spec.model_dump(mode="json"))
-        write_checksum(sample_dir / "sample-spec.json")
-        prompt = task_prompt(BoundaryCondition(spec.boundary))
-        (sample_dir / "task-prompt.txt").write_text(prompt, encoding="utf-8")
-        write_checksum(sample_dir / "task-prompt.txt")
+        recovering_sample = stage == "recovery" and sample_dir.is_dir()
+        if recovering_sample:
+            if not _checksum_valid(sample_dir / "sample-spec.json") or not _checksum_valid(
+                sample_dir / "task-prompt.txt"
+            ):
+                raise ValueError("paused sample inputs are incomplete")
+            first_attempt = int(state["failed_sample"]["attempt"]) + 1
+            attempt_numbers = range(first_attempt, first_attempt + 1)
+        else:
+            sample_dir.mkdir(parents=False, exist_ok=False)
+            _write_json(sample_dir / "sample-spec.json", spec.model_dump(mode="json"))
+            write_checksum(sample_dir / "sample-spec.json")
+            prompt = task_prompt(BoundaryCondition(spec.boundary))
+            (sample_dir / "task-prompt.txt").write_text(prompt, encoding="utf-8")
+            write_checksum(sample_dir / "task-prompt.txt")
+            attempt_numbers = range(1, retry_limit + 2)
         result: ProviderRunResult | None = None
         attempt_used = 0
-        for attempt in range(1, retry_limit + 2):
+        for attempt in attempt_numbers:
             attempt_used = attempt
             attempt_dir = sample_dir / f"attempt-{attempt:02d}"
             attempt_dir.mkdir(parents=False, exist_ok=False)
@@ -481,6 +603,63 @@ def run_gate_stage(
                     state["stop_reason"] = "infrastructure retry exhausted"
                     _write_state(run_dir, state)
                     raise
+            except ProviderInfrastructureInterruption as error:
+                failure_uri = (
+                    f"{backup_root}/{run_dir.name}/{spec.sample_id}/attempt-{attempt:02d}"
+                )
+                failure = {
+                    "sample_id": spec.sample_id,
+                    "attempt": attempt,
+                    "git_commit": git_commit,
+                    "classification": error.classification,
+                    "failure_timestamp": datetime.now(UTC).isoformat(),
+                    "provider_error_code": error.provider_error_code,
+                    "retryable": False,
+                    "resume_eligible": not recovering_sample,
+                    "api_request_made": True,
+                    "actual_cost_usd": error.usage.actual_cost_usd,
+                    "usage": error.usage.model_dump(mode="json"),
+                    "resolved_model": manifest["model"]["resolved_model"],
+                    "error": str(error),
+                }
+                _write_json(attempt_dir / "failure.json", failure)
+                write_checksum(attempt_dir / "failure.json")
+                failure_backup = _backup_artifact(
+                    backup=backup, backup_uri=failure_uri, bundle=attempt_dir
+                )
+                failure["backup_archive_sha256"] = failure_backup["archive_sha256"]
+                state.setdefault("provider_interruptions", []).append(failure)
+                state["total_actual_cost_usd"] = round(
+                    float(state["total_actual_cost_usd"])
+                    + error.usage.actual_cost_usd,
+                    8,
+                )
+                started_count = max(len(state["completed_samples"]) + 1, 1)
+                state["projected_gate_cost_usd"] = round(
+                    float(state["total_actual_cost_usd"]) / started_count * TOTAL_SAMPLES,
+                    8,
+                )
+                state["failed_sample"] = failure
+                if float(state["total_actual_cost_usd"]) >= gate_ceiling:
+                    failure["resume_eligible"] = False
+                    state["status"] = "STOPPED"
+                    state["stop_reason"] = "provider failure reached the hard cost ceiling"
+                elif float(state["projected_gate_cost_usd"]) > gate_ceiling:
+                    failure["resume_eligible"] = False
+                    state["status"] = "STOPPED"
+                    state["stop_reason"] = "provider failure pushed projected cost above ceiling"
+                elif recovering_sample:
+                    state["status"] = "STOPPED"
+                    state["stop_reason"] = "provider replacement attempt failed"
+                else:
+                    state["status"] = "PROVIDER_RECOVERY_REQUIRED"
+                    state["stop_reason"] = "provider interruption requires operator recovery"
+                    state["resume_stop_index"] = stop_index
+                _write_state(run_dir, state)
+                _copy_final_backup_record(
+                    f"{backup_root}/{run_dir.name}", _state_path(run_dir)
+                )
+                raise FrontierRunError(str(state["stop_reason"])) from error
             except Exception as error:
                 credential = os.environ.get("OPENAI_API_KEY", "")
                 message = f"{type(error).__name__}: {error}"

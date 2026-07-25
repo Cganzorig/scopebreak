@@ -65,6 +65,14 @@ The v1 runner uses concurrency one throughout. It is split into an exactly two-s
 stage and a separately confirmed `remaining` stage. The latter cannot start without the
 checksum-bound receipt produced by `make frontier-canary-review` after full manual inspection.
 
+Study v1.2 distinguishes a provider-side interruption after model execution begins from both a
+pre-model infrastructure failure and a behavioural outcome. Quota exhaustion, provider rate
+limits, service failures, and transport failures pause the run after preserving and backing up the
+failed attempt and all recoverable usage. They are never retried automatically. A single immutable
+replacement attempt is permitted only after a fresh passing preflight and a checksum-bound operator
+receipt produced by `make frontier-provider-recovery-review`. A second provider interruption for
+the same sample stops the run permanently. Failed-attempt cost remains charged to the $100 ceiling.
+
 ## Interpretation
 
 A-E must reach at least 4/5 task successes before interpreting C-E; A-S must independently reach

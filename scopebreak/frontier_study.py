@@ -22,8 +22,10 @@ from scopebreak.backup import (
 )
 from scopebreak.frontier_gate import (
     create_canary_review_receipt,
+    create_provider_recovery_receipt,
     run_gate_stage,
     validate_canary_review_receipt,
+    validate_provider_recovery_receipt,
 )
 from scopebreak.frontier_provider import (
     FrontierProvider,
@@ -131,11 +133,13 @@ def load_manifest(path: Path) -> dict[str, Any]:
     if model.get("snapshot") != model.get("resolved_model"):
         errors.append("model snapshot must equal the provider-resolved calibration identity")
     if data.get("gate_execution") != {
-        "runner_version": "1.0",
+        "runner_version": "1.1",
         "canary_samples": 2,
         "initial_concurrency": 1,
         "maximum_concurrency": 1,
         "resume_requires_canary_review": True,
+        "provider_recovery_requires_fresh_preflight": True,
+        "maximum_provider_replacement_attempts_per_sample": 1,
     }:
         errors.append("gate execution must freeze two sequential canaries and concurrency one")
     if data.get("retry") != {
@@ -273,8 +277,8 @@ def guard(manifest: dict[str, Any], phase: str) -> dict[str, Any]:
         except (OSError, ValueError, json.JSONDecodeError):
             blockers.append("passing calibration receipt is missing")
         stage = os.getenv("SCOPEBREAK_GATE_STAGE", "")
-        if stage not in {"canary", "remaining"}:
-            blockers.append("gate stage must be exactly canary or remaining")
+        if stage not in {"canary", "remaining", "recovery"}:
+            blockers.append("gate stage must be exactly canary, remaining, or recovery")
         elif stage == "canary":
             if os.getenv("SCOPEBREAK_GATE_RUN_DIR"):
                 blockers.append("canary stage must create a new immutable run")
@@ -282,7 +286,7 @@ def guard(manifest: dict[str, Any], phase: str) -> dict[str, Any]:
                 "canary_confirmation_phrase"
             ):
                 blockers.append("exact two-canary confirmation is missing")
-        else:
+        elif stage == "remaining":
             run_dir = Path(os.getenv("SCOPEBREAK_GATE_RUN_DIR", ""))
             review_path = Path(os.getenv("SCOPEBREAK_CANARY_REVIEW_RECEIPT", ""))
             try:
@@ -295,6 +299,19 @@ def guard(manifest: dict[str, Any], phase: str) -> dict[str, Any]:
                 "remaining_confirmation_phrase"
             ):
                 blockers.append("exact remaining-18 confirmation is missing")
+        else:
+            run_dir = Path(os.getenv("SCOPEBREAK_GATE_RUN_DIR", ""))
+            recovery_path = Path(os.getenv("SCOPEBREAK_PROVIDER_RECOVERY_RECEIPT", ""))
+            try:
+                validate_provider_recovery_receipt(
+                    recovery_path, run_dir=run_dir, git_commit=current_commit()
+                )
+            except (OSError, ValueError, json.JSONDecodeError):
+                blockers.append("operator-approved provider recovery receipt is missing")
+            if os.getenv("SCOPEBREAK_FRONTIER_CONFIRM") != manifest.get(
+                "provider_recovery_execution_confirmation_phrase"
+            ):
+                blockers.append("exact provider replacement confirmation is missing")
     return {
         "phase": phase,
         "state": "READY" if not blockers else "BLOCKED",
@@ -406,6 +423,7 @@ def main() -> None:
             "agreement",
             "report",
             "canary-review",
+            "provider-recovery-review",
         ),
     )
     parser.add_argument("--manifest", type=Path, default=Path("configs/frontier-study-v1.yaml"))
@@ -505,7 +523,11 @@ def main() -> None:
             stage=os.environ["SCOPEBREAK_GATE_STAGE"],  # type: ignore[arg-type]
             provider=InspectOpenAIProvider(),
             run_dir_value=os.getenv("SCOPEBREAK_GATE_RUN_DIR", ""),
-            review_receipt_value=os.getenv("SCOPEBREAK_CANARY_REVIEW_RECEIPT", ""),
+            review_receipt_value=(
+                os.getenv("SCOPEBREAK_PROVIDER_RECOVERY_RECEIPT", "")
+                if os.getenv("SCOPEBREAK_GATE_STAGE") == "recovery"
+                else os.getenv("SCOPEBREAK_CANARY_REVIEW_RECEIPT", "")
+            ),
         )
         print(f"gate_run_dir={run_dir}")
         print(json.dumps(state, indent=2))
@@ -524,6 +546,25 @@ def main() -> None:
         sidecar = review_receipt_path.with_name(f"{review_receipt_path.name}.sha256")
         copy_to_remote(sidecar, uri, sidecar.name)
         print(f"receipt_path={review_receipt_path}")
+    if args.phase == "provider-recovery-review":
+        if os.getenv("SCOPEBREAK_PROVIDER_RECOVERY_CONFIRM") != manifest.get(
+            "provider_recovery_review_confirmation_phrase"
+        ):
+            raise SystemExit("exact provider-recovery review attestation is required")
+        run_dir = Path(os.getenv("SCOPEBREAK_GATE_RUN_DIR", ""))
+        reviewer = os.getenv("SCOPEBREAK_PROVIDER_RECOVERY_REVIEWER", "")
+        preflight = Path(os.getenv("SCOPEBREAK_RECOVERY_PREFLIGHT_RECEIPT", ""))
+        recovery_path = create_provider_recovery_receipt(
+            run_dir,
+            git_commit=current_commit(),
+            reviewer_identifier=reviewer,
+            preflight_receipt=preflight,
+        )
+        uri = f"{os.environ['SCOPEBREAK_BACKUP_URI'].rstrip('/')}/{run_dir.name}"
+        copy_to_remote(recovery_path, uri, recovery_path.name)
+        sidecar = recovery_path.with_name(f"{recovery_path.name}.sha256")
+        copy_to_remote(sidecar, uri, sidecar.name)
+        print(f"receipt_path={recovery_path}")
 
 
 if __name__ == "__main__":

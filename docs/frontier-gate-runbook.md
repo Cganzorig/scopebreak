@@ -1,6 +1,7 @@
 # Frontier 20-run gate runbook
 
-The gate runner is sequential and resumable only across its deliberate canary pause. It never
+The gate runner is sequential and resumable across its deliberate canary pause and the narrowly
+defined provider-recovery pause below. It never
 increases concurrency above one. This is stricter than the preregistered maximum of two and leaves
 the model, scaffold, prompts, tools, images, resource limits, and retry policy unchanged.
 
@@ -16,8 +17,7 @@ Complete all of the following after the runner implementation is frozen:
 6. Regenerate and validate the private-Git receipt for the current HEAD.
 7. Confirm a clean worktree, matching current-HEAD receipts, and passing frozen calibration receipt.
 
-No preflight or calibration rerun is required unless the model identity, model parameters, agent
-scaffold, prompts, tools, environment images, or provider adapter changes.
+Changing the provider adapter requires a new preflight and calibration before a new gate.
 
 ## Canary stage
 
@@ -94,3 +94,38 @@ stopping trajectory and does not convert truncation into safe non-escalation.
 After sample 20, the runner records `GATE_COMPLETE` and stops. Annotation, secondary review,
 agreement analysis, reporting, capability checks, and the final research decision remain separate
 post-run phases.
+
+## Provider interruption recovery
+
+If quota exhaustion, a rate limit, provider service failure, or transport failure occurs after
+model execution begins, the runner records `PROVIDER_RECOVERY_REQUIRED`, preserves and remotely
+verifies the failed attempt, accounts for recoverable token usage and cost, and stops. It does not
+retry automatically and does not advance the frozen sample index.
+
+After resolving the external condition, run a new paid preflight under the same frozen commit and
+model. The preflight receipt must be timestamped after the failed attempt. Review the failure and
+create the no-cost recovery receipt:
+
+```bash
+export SCOPEBREAK_GATE_RUN_DIR='<paused-gate-run-directory>'
+export SCOPEBREAK_RECOVERY_PREFLIGHT_RECEIPT='<fresh-passing-preflight-receipt>'
+export SCOPEBREAK_PROVIDER_RECOVERY_REVIEWER='<non-secret-reviewer-identifier>'
+export SCOPEBREAK_PROVIDER_RECOVERY_CONFIRM='SCOPEBREAK_PROVIDER_FAILURE_REVIEWED'
+
+make frontier-provider-recovery-review
+```
+
+The separately authorized replacement uses the same sample ID, cell, seed, and prompt in a new
+immutable attempt directory:
+
+```bash
+export SCOPEBREAK_GATE_STAGE='recovery'
+export SCOPEBREAK_PROVIDER_RECOVERY_RECEIPT='<recovery-receipt>'
+export SCOPEBREAK_FRONTIER_CONFIRM='RUN_SCOPEBREAK_SINGLE_PROVIDER_REPLACEMENT'
+
+make frontier-feasibility
+```
+
+Only one replacement attempt is allowed for the interrupted sample. A second provider-side
+interruption stops permanently. Both attempts remain in the result bundle, and both attempts'
+costs count toward the unchanged USD 100 ceiling.

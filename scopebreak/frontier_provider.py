@@ -58,6 +58,23 @@ class RetryableInfrastructureError(FrontierRunError):
     """An environment failed before a provider request and may be retried once."""
 
 
+class ProviderInfrastructureInterruption(FrontierRunError):
+    """A provider-side failure after model start that requires an operator resume."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        classification: str,
+        provider_error_code: str,
+        usage: UsageSummary,
+    ) -> None:
+        super().__init__(message)
+        self.classification = classification
+        self.provider_error_code = provider_error_code
+        self.usage = usage
+
+
 WORKER_SHELL_MINIMUM_TIMEOUT_MS = 1_000
 WORKER_SHELL_MAXIMUM_TIMEOUT_MS = 30_000
 
@@ -231,6 +248,79 @@ def _usage_from_sample(sample: Any, input_rate: float, output_rate: float) -> Us
     )
 
 
+def _partial_usage_from_sample(
+    sample: Any, input_rate: float, output_rate: float
+) -> UsageSummary:
+    """Recover billable usage from successful turns preceding a provider failure."""
+    model_events = [
+        event
+        for event in sample.events
+        if isinstance(event, ModelEvent) and event.output.usage is not None
+    ]
+    contexts: list[int] = []
+    latencies: list[float] = []
+    input_tokens = 0
+    output_tokens = 0
+    reasoning_tokens = 0
+    for event in model_events:
+        usage = event.output.usage
+        assert usage is not None
+        request_input = (
+            usage.input_tokens
+            + (usage.input_tokens_cache_read or 0)
+            + (usage.input_tokens_cache_write or 0)
+        )
+        contexts.append(request_input)
+        input_tokens += request_input
+        output_tokens += usage.output_tokens
+        reasoning_tokens += usage.reasoning_tokens or 0
+        latencies.append(event.output.time or event.working_time or 0.0)
+    return UsageSummary(
+        cumulative_input_tokens=input_tokens,
+        cumulative_output_tokens=output_tokens,
+        reasoning_tokens=reasoning_tokens,
+        peak_context_tokens=max(contexts, default=0),
+        context_tokens_by_turn=tuple(contexts),
+        provider_latency_seconds_by_turn=tuple(latencies),
+        actual_cost_usd=(input_tokens * input_rate + output_tokens * output_rate) / 1_000_000,
+        cost_source="recovered_frozen_manifest_uncached_rates",
+    )
+
+
+def _provider_interruption(log: Any, sample: Any, manifest: Mapping[str, Any]) -> None:
+    """Raise structured evidence for recognised provider-side interruptions."""
+    messages = [str(getattr(getattr(log, "error", None), "message", ""))]
+    for event in sample.events:
+        if isinstance(event, ModelEvent):
+            messages.extend(str(value) for value in (event.error, event.output.error) if value)
+    combined = "\n".join(messages).lower()
+    classifications = (
+        ("insufficient_quota", "PROVIDER_QUOTA_EXHAUSTED"),
+        ("rate_limit", "PROVIDER_RATE_LIMIT"),
+        ("rate limit", "PROVIDER_RATE_LIMIT"),
+        ("429", "PROVIDER_RATE_LIMIT"),
+        ("service_unavailable", "PROVIDER_SERVICE_FAILURE"),
+        ("503", "PROVIDER_SERVICE_FAILURE"),
+        ("connection", "PROVIDER_TRANSPORT_FAILURE"),
+        ("timeout", "PROVIDER_TRANSPORT_FAILURE"),
+    )
+    match = next(((code, label) for code, label in classifications if code in combined), None)
+    if match is None:
+        return
+    code, classification = match
+    usage = _partial_usage_from_sample(
+        sample,
+        float(manifest["cost"]["input_usd_per_million_tokens"]),
+        float(manifest["cost"]["output_usd_per_million_tokens"]),
+    )
+    raise ProviderInfrastructureInterruption(
+        f"provider infrastructure interrupted the trajectory ({classification})",
+        classification=classification,
+        provider_error_code=code,
+        usage=usage,
+    )
+
+
 def _tool_diagnostics(sample: Any) -> tuple[int, int, int]:
     events = [event for event in sample.events if isinstance(event, ToolEvent)]
     malformed = sum(1 for event in events if event.error is not None or event.failed is True)
@@ -268,14 +358,17 @@ def _inspect_result(
         limit_details.get("limit") or getattr(sample, "limit", None) or ""
     ) or None
     if log.status != "success" and truncation_hint is None:
+        _provider_interruption(log, sample, manifest)
         raise FrontierRunError(f"Inspect evaluation failed: {log.status}")
     if sample.error and truncation_hint is None:
+        _provider_interruption(log, sample, manifest)
         raise FrontierRunError(f"Inspect sample failed: {sample.error}")
     model_events = [event for event in sample.events if isinstance(event, ModelEvent)]
     errors = tuple(
         error for event in model_events for error in (event.error, event.output.error) if error
     )
     if errors:
+        _provider_interruption(log, sample, manifest)
         raise FrontierRunError("provider returned an error")
     if sample.model_fallbacks:
         raise FrontierRunError("provider or Inspect model fallback detected")
@@ -1366,7 +1459,11 @@ def new_paid_run_dir(phase: str) -> Path:
 def save_provider_receipt(result: ProviderRunResult, output_dir: Path, git_commit: str) -> Path:
     """Persist a checksum-bound provider receipt containing no credentials."""
     receipt = output_dir / f"{result.phase}-receipt.json"
-    payload = {"git_commit": git_commit, **result.model_dump(mode="json")}
+    payload = {
+        "git_commit": git_commit,
+        "receipt_timestamp": datetime.now(UTC).isoformat(),
+        **result.model_dump(mode="json"),
+    }
     _write_json(receipt, payload)
     write_checksum(receipt)
     return receipt

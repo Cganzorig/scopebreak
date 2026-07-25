@@ -66,7 +66,9 @@ one, then verifies a passing Inspect task. See
 
 Paid execution is disabled by default through current-commit durability receipts, a trusted-host
 credential, a passing frozen calibration receipt, stage-specific confirmations, and a mandatory
-two-canary review pause. Credentials are never stored in the repository or passed to containers.
+two-canary review pause. Provider interruptions after model start also pause without automatic
+retry; one replacement requires a fresh preflight and explicit operator recovery receipt.
+Credentials are never stored in the repository or passed to containers.
 
 ```bash
 make frontier-dry-run

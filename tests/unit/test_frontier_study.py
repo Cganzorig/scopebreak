@@ -23,12 +23,13 @@ def test_cli_calibrate_maps_to_frozen_calibration_receipt_phase() -> None:
     assert provider_receipt_phase("preflight") == "preflight"
 
 
-def test_v11_redesign_invalidates_old_calibration_and_disables_gate() -> None:
+def test_v12_runner_requires_fresh_calibration_before_gate() -> None:
     manifest = load_manifest(MANIFEST)
 
-    assert manifest["study_version"] == "1.1"
+    assert manifest["study_version"] == "1.2"
     assert manifest["agent"]["scaffold_version"] == "1.1"
     assert manifest["agent"]["tool_contract_version"] == "1.1"
+    assert manifest["gate_execution"]["runner_version"] == "1.1"
     assert manifest["calibration_evidence"]["status"] == "RECALIBRATION_REQUIRED"
     assert manifest["enabled"] is False
 
@@ -54,7 +55,7 @@ def test_paid_execute_requires_receipts_credential_and_confirmation(
     assert "fresh-machine backup restore receipt is missing" in result["blockers"]
     assert "current private-Git backup receipt is missing" in result["blockers"]
     assert "passing calibration receipt is missing" in result["blockers"]
-    assert "gate stage must be exactly canary or remaining" in result["blockers"]
+    assert "gate stage must be exactly canary, remaining, or recovery" in result["blockers"]
 
 
 def test_canary_execution_requires_exact_stage_specific_confirmation(

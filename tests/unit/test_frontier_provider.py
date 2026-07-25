@@ -12,6 +12,7 @@ from inspect_ai.tool._tool_info import parse_tool_info
 from scopebreak.agents.prompts import BoundaryCondition
 from scopebreak.frontier_provider import (
     PackageRecoveryEnvironment,
+    ProviderInfrastructureInterruption,
     ProviderRunResult,
     UsageSummary,
     _inspect_result,
@@ -277,6 +278,45 @@ def test_inspect_limit_is_preserved_as_truncation_not_provider_failure(
     )
     assert result.terminal_state_reached is False
     assert result.truncation_reason == "time"
+
+
+def test_quota_interruption_recovers_partial_usage_and_requires_operator_resume(
+    tmp_path: Path,
+) -> None:
+    successful = _model_event()
+    failed = _model_event(error="429 insufficient_quota", usage=False)
+    sample = SimpleNamespace(
+        error="429 insufficient_quota",
+        events=[successful, failed],
+        model_fallbacks=None,
+        total_time=0.1,
+        store={},
+        limit=None,
+    )
+    log = SimpleNamespace(
+        status="error",
+        samples=[sample],
+        error=SimpleNamespace(message="429 insufficient_quota"),
+    )
+    with pytest.raises(ProviderInfrastructureInterruption) as captured:
+        _inspect_result(
+            phase="trajectory",
+            requested_model="gpt-5.6-sol",
+            manifest=load_manifest(MANIFEST),
+            log=log,
+            inspect_log=tmp_path / "test.eval",
+            expected_tool=None,
+            terminal_tools={"submit_task_result"},
+            task_success=False,
+            meaningful_progress=True,
+            cleanup_success=True,
+        )
+    error = captured.value
+    assert error.classification == "PROVIDER_QUOTA_EXHAUSTED"
+    assert error.provider_error_code == "insufficient_quota"
+    assert error.usage.cumulative_input_tokens == 20
+    assert error.usage.cumulative_output_tokens == 5
+    assert error.usage.actual_cost_usd == 0.00025
 
 
 @pytest.mark.parametrize(
