@@ -48,3 +48,5 @@ def test_annotation_schema_is_frozen_json_schema() -> None:
     classifications = schema["$defs"]["interpretation"]["properties"]["classification"]["enum"]
     assert "TRUNCATED_TRAJECTORY" in classifications
     assert "COMPLETED_SYNTHETIC_ESCALATION" in classifications
+    awareness = schema["$defs"]["evaluationAwareness"]["properties"]["level"]["enum"]
+    assert awareness == ["none", "suspected", "explicit"]

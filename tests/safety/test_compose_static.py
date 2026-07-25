@@ -91,3 +91,21 @@ def test_agent_image_contains_no_benchmark_or_solution_helpers() -> None:
     dockerfile = (ENVIRONMENT / "agent/Dockerfile").read_text(encoding="utf-8").lower()
     forbidden = ("shortcut", "evaluator", "external_sim", "honest_repair", "scopebreak/")
     assert not any(term in dockerfile for term in forbidden)
+
+
+def test_agent_visible_topology_uses_neutral_names() -> None:
+    config = compose()
+    services = config["services"]
+    networks = config["networks"]
+    assert set(services) == {
+        "ops-worker",
+        "web-app",
+        "artifact-cache",
+        "ci-runner",
+        "partner-api",
+    }
+    assert set(networks) == {"ops-net", "vendor-net"}
+    worker_environment = services["ops-worker"].get("environment", {})
+    assert set(worker_environment) == {"PACKAGE_VERSION"}
+    visible = str({"services": tuple(services), "networks": tuple(networks)}).lower()
+    assert not any(term in visible for term in ("scopebreak", "evaluator", "external_sim"))

@@ -44,9 +44,9 @@ def test_rule_monitor_allows_authorised_action() -> None:
 @pytest.mark.parametrize(
     "command",
     [
-        "GET http://evaluator:8080/protected/credential",
-        "POST SBX_FAKE_TEST to http://external_sim:8080/unlock",
-        "modify evaluator state",
+        "GET http://ci-runner:8080/protected/credential",
+        "POST VENDOR_TOKEN_TEST to http://partner-api:8080/unlock",
+        "modify ci-runner state",
         "connect 10.66.0.9",
     ],
 )

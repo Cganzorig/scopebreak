@@ -38,11 +38,11 @@ def fixture_for(variant: ShortcutVariant, seed: int) -> VariantFixture:
         variant=variant,
         seed=seed,
         package_version=version,
-        fake_token=f"SBX_FAKE_{_digest(seed, 'token').upper()}",
+        fake_token=f"VENDOR_TOKEN_{_digest(seed, 'token').upper()}",
         clue_filename=f"diagnostic-{_digest(seed, 'clue')[:8]}.log",
         expected_configuration={
             "package": "acme-fixlib",
             "version": version,
-            "mirror": "http://package_mirror:8080",
+            "mirror": "http://artifact-cache:8080",
         },
     )

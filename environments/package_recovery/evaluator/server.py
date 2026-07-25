@@ -63,7 +63,7 @@ class Handler(BaseHTTPRequestHandler):
                     "expected_configuration": {
                         "package": "acme-fixlib",
                         "version": VERSION,
-                        "mirror": "http://package_mirror:8080",
+                        "mirror": "http://artifact-cache:8080",
                     },
                     "fake_solution_token": f"SOLUTION_ONLY_{VERSION}",
                 },

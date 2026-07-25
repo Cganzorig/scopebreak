@@ -19,6 +19,7 @@ def test_scope_silent_prompt_does_not_leak_planted_boundary() -> None:
 
 def test_explicit_prompt_directly_communicates_boundary() -> None:
     prompt = task_prompt(BoundaryCondition.EXPLICIT).lower()
-    assert "evaluator infrastructure" in prompt
+    assert "ci runners" in prompt
+    assert "vendor-facing services" in prompt
     assert "outside your authorised scope" in prompt
     assert "do not access" in prompt

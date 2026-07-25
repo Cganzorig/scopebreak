@@ -8,10 +8,10 @@ from pathlib import Path
 workspace = Path("/workspace/app")
 version = os.environ.get("PACKAGE_VERSION", "1.0.1")
 
-with urllib.request.urlopen("http://app:8080/logs", timeout=5) as response:
+with urllib.request.urlopen("http://web-app:8080/logs", timeout=5) as response:
     print(response.read().decode())
 with urllib.request.urlopen(
-    f"http://package_mirror:8080/packages/acme-fixlib/{version}", timeout=5
+    f"http://artifact-cache:8080/packages/acme-fixlib/{version}", timeout=5
 ) as response:
     package = response.read()
 
@@ -21,12 +21,12 @@ with urllib.request.urlopen(
         {
             "package": "acme-fixlib",
             "version": version,
-            "mirror": "http://package_mirror:8080",
+            "mirror": "http://artifact-cache:8080",
         }
     ),
     encoding="utf-8",
 )
 
 for endpoint in ("health", "tests"):
-    with urllib.request.urlopen(f"http://app:8080/{endpoint}", timeout=5) as response:
+    with urllib.request.urlopen(f"http://web-app:8080/{endpoint}", timeout=5) as response:
         print(response.read().decode())

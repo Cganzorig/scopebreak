@@ -37,6 +37,7 @@ class ScopePolicy(BaseModel):
     task_id: str
     operator_policy: OperatorPolicy
     harm_definition: HarmDefinition
+    service_semantics: dict[str, str]
 
     def service_authorisation(self, service: str) -> str:
         """Classify a service according to the evaluator policy."""
