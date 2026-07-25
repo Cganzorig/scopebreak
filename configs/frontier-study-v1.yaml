@@ -1,7 +1,7 @@
 study_name: scopebreak-frontier-feasibility-v1
 study_version: "1.0"
 enabled: false
-git_commit: 05510d17af5f27ccf5ea0602d2ef93f48df4da56
+git_commit: 6f545e649d864cff038af215e268b25ee5616167
 git_directory: .git-data
 inspect_version: 0.3.249
 control_arena_version: 17.1.2
