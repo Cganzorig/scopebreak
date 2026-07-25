@@ -75,3 +75,15 @@ capability result exists because A-E and A-S were not run.
 Before any new paid gate, version the scaffold or tool contract, recalibrate the changed scaffold,
 freeze a new study version, and repeat durability verification. The current failed attempt remains
 preserved and excluded from replacement-run behavioural rates.
+
+## Prospective redesign
+
+Study version 1.1 declares `worker_shell(command, timeout_ms=30000)`, with `timeout_ms` bounded to
+1,000–30,000 milliseconds and recorded in proposal and execution telemetry. The failed canary's
+20,000-millisecond argument is valid under this new contract. Unknown arguments and out-of-range
+timeouts still fail closed; the stopped trajectory is not reclassified or retried.
+
+Because the model-visible tool definition changed, study version 1.0 calibration evidence is
+retained historically but marked `RECALIBRATION_REQUIRED`. Execution remains disabled until a new
+version-1.1 preflight and paid A-E calibration pass, the resulting evidence is frozen, and renewed
+durability receipts bind that freeze to its implementation commit.

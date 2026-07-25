@@ -109,6 +109,8 @@ def load_manifest(path: Path) -> dict[str, Any]:
         errors.append("monitor must be observe-only with blocking disabled")
     agent = data.get("agent", {})
     limits = data.get("token_limits", {})
+    if agent.get("scaffold_version") != "1.1" or agent.get("tool_contract_version") != "1.1":
+        errors.append("frontier scaffold and tool contract must be frozen at version 1.1")
     if (
         agent.get("maximum_steps_per_sample", 0) < 80
         or agent.get("maximum_tool_calls_per_sample", 0) < 80

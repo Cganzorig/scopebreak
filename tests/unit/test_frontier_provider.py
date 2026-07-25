@@ -1,3 +1,4 @@
+import asyncio
 import json
 import zipfile
 from pathlib import Path
@@ -6,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from inspect_ai.event import ModelEvent, ToolEvent
 from inspect_ai.model import GenerateConfig, ModelOutput, ModelUsage
+from inspect_ai.tool._tool_info import parse_tool_info
 
 from scopebreak.agents.prompts import BoundaryCondition
 from scopebreak.frontier_provider import (
@@ -16,6 +18,7 @@ from scopebreak.frontier_provider import (
     _resolved_model_is_requested_snapshot,
     _scan_for_credential,
     _usage_from_sample,
+    _worker_shell_tool,
     save_provider_receipt,
     validate_provider_receipt,
 )
@@ -155,6 +158,52 @@ def test_variant_c_uses_frozen_shortcut_images_and_overlay(
             "ci-runner",
             "partner-api",
         ]
+    ]
+
+
+def test_worker_shell_v11_accepts_bounded_timeout_argument() -> None:
+    calls: list[tuple[str, int]] = []
+
+    def handler(command: str, timeout_ms: int) -> str:
+        calls.append((command, timeout_ms))
+        return "ok"
+
+    worker = _worker_shell_tool(handler)
+    info = parse_tool_info(worker)
+
+    assert set(info.parameters.properties) == {"command", "timeout_ms"}
+    assert info.parameters.required == ["command"]
+    assert info.parameters.properties["timeout_ms"].default == 30_000
+    assert asyncio.run(worker(command="pytest -q", timeout_ms=20_000)) == "ok"
+    assert calls == [("pytest -q", 20_000)]
+
+
+@pytest.mark.parametrize("timeout_ms", [0, 999, 30_001])
+def test_worker_shell_v11_rejects_out_of_range_timeout(timeout_ms: int) -> None:
+    worker = _worker_shell_tool(lambda command, milliseconds: f"{command}:{milliseconds}")
+
+    with pytest.raises(ValueError, match="between 1000 and 30000"):
+        asyncio.run(worker(command="true", timeout_ms=timeout_ms))
+
+
+def test_environment_worker_shell_uses_requested_bounded_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    environment = PackageRecoveryEnvironment("timeout-test", 7, tmp_path)
+    observed: list[tuple[list[str], int]] = []
+
+    def compose_run(
+        arguments: list[str], *, timeout: int = 120, check: bool = True
+    ) -> SimpleNamespace:
+        del check
+        observed.append((arguments, timeout))
+        return SimpleNamespace(returncode=0, stdout="ok", stderr="")
+
+    monkeypatch.setattr(environment, "_run", compose_run)
+
+    assert environment.worker_shell("pytest -q", timeout_ms=20_000) == "ok"
+    assert observed == [
+        (["exec", "-T", "ops-worker", "sh", "-lc", "pytest -q"], 20)
     ]
 
 

@@ -23,6 +23,16 @@ def test_cli_calibrate_maps_to_frozen_calibration_receipt_phase() -> None:
     assert provider_receipt_phase("preflight") == "preflight"
 
 
+def test_v11_redesign_invalidates_old_calibration_and_disables_gate() -> None:
+    manifest = load_manifest(MANIFEST)
+
+    assert manifest["study_version"] == "1.1"
+    assert manifest["agent"]["scaffold_version"] == "1.1"
+    assert manifest["agent"]["tool_contract_version"] == "1.1"
+    assert manifest["calibration_evidence"]["status"] == "RECALIBRATION_REQUIRED"
+    assert manifest["enabled"] is False
+
+
 def test_manifest_rejects_duplicate_seed(tmp_path: Path) -> None:
     manifest = yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))
     manifest["seeds"][1] = manifest["seeds"][0]
