@@ -542,8 +542,41 @@ class PackageRecoveryEnvironment:
             raise FrontierRunError(f"environment command failed: {' '.join(arguments)}")
         return result
 
-    def start(self) -> None:
-        self._run(["up", "-d", "--wait", "--build", "ops-worker"], timeout=300)
+    def _host_docker(
+        self, arguments: Sequence[str], *, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
+        result = subprocess.run(
+            ["docker", *arguments],
+            env=self.environment,
+            timeout=120,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        log = self.output_dir / "infrastructure.log"
+        with log.open("a", encoding="utf-8") as stream:
+            stream.write(f"$ docker {' '.join(arguments)}\n")
+            stream.write(result.stdout)
+            stream.write(result.stderr)
+        if check and result.returncode != 0:
+            raise FrontierRunError(f"Docker command failed: {' '.join(arguments)}")
+        return result
+
+    def _project_image(self, service: str) -> str:
+        return f"{self.project}-{service}:latest"
+
+    def start(self, expected_digests: Mapping[str, str]) -> None:
+        # Compose adds project-specific labels while building, so rebuilding under a
+        # per-sample project changes the image config digest even when every layer is
+        # identical. Tag the preregistered image IDs for this temporary project and
+        # explicitly disable builds so the running containers use the exact images.
+        for service in ("ops-worker", "web-app", "artifact-cache"):
+            expected = expected_digests.get(service, "")
+            if not expected:
+                raise FrontierRunError(f"frozen image digest is missing for {service}")
+            self._host_docker(["image", "inspect", expected])
+            self._host_docker(["tag", expected, self._project_image(service)])
+        self._run(["up", "-d", "--wait", "--no-build", "ops-worker"], timeout=300)
 
     def worker_shell(self, command: str) -> str:
         result = self._run(
@@ -600,6 +633,8 @@ class PackageRecoveryEnvironment:
 
     def cleanup(self) -> bool:
         self._run(["down", "--volumes", "--remove-orphans"], timeout=120, check=False)
+        for service in ("ops-worker", "web-app", "artifact-cache"):
+            self._host_docker(["image", "rm", self._project_image(service)], check=False)
         checks = (
             ["docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={self.project}"],
             [
@@ -619,10 +654,18 @@ class PackageRecoveryEnvironment:
                 f"label=com.docker.compose.project={self.project}",
             ],
         )
-        return all(
+        resources_removed = all(
             not subprocess.run(command, check=True, capture_output=True, text=True).stdout.strip()
             for command in checks
         )
+        tags_removed = all(
+            self._host_docker(
+                ["image", "inspect", self._project_image(service)], check=False
+            ).returncode
+            != 0
+            for service in ("ops-worker", "web-app", "artifact-cache")
+        )
+        return resources_removed and tags_removed
 
 
 class InspectOpenAIProvider:
@@ -763,7 +806,7 @@ class InspectOpenAIProvider:
         cleanup_success = False
         log: Any = None
         try:
-            environment.start()
+            environment.start(manifest["environment_image_digests"])
             actual_digests = environment.verify_image_digests(manifest["environment_image_digests"])
             _write_json(output_dir / "environment-image-digests.json", actual_digests)
             write_checksum(output_dir / "environment-image-digests.json")

@@ -8,6 +8,7 @@ from inspect_ai.event import ModelEvent, ToolEvent
 from inspect_ai.model import GenerateConfig, ModelOutput, ModelUsage
 
 from scopebreak.frontier_provider import (
+    PackageRecoveryEnvironment,
     ProviderRunResult,
     UsageSummary,
     _inspect_result,
@@ -70,6 +71,43 @@ def test_model_resolution_allows_only_requested_model_or_snapshot() -> None:
         "gpt-5.6-sol", "gpt-5.6-sol-2026-07-01"
     )
     assert not _resolved_model_is_requested_snapshot("gpt-5.6-sol", "gpt-5.6-terra")
+
+
+def test_calibration_reuses_frozen_images_without_rebuilding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    environment = PackageRecoveryEnvironment("calibration-test", 149482140, tmp_path)
+    host_calls: list[list[str]] = []
+    compose_calls: list[list[str]] = []
+
+    def host_docker(arguments: list[str], *, check: bool = True) -> SimpleNamespace:
+        del check
+        host_calls.append(arguments)
+        return SimpleNamespace(returncode=0)
+
+    def compose_run(
+        arguments: list[str], *, timeout: int = 120, check: bool = True
+    ) -> SimpleNamespace:
+        del timeout, check
+        compose_calls.append(arguments)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(environment, "_host_docker", host_docker)
+    monkeypatch.setattr(environment, "_run", compose_run)
+    digests = {
+        "ops-worker": "sha256:ops",
+        "web-app": "sha256:web",
+        "artifact-cache": "sha256:cache",
+    }
+    environment.start(digests)
+
+    assert ["image", "inspect", "sha256:ops"] in host_calls
+    assert [
+        "tag",
+        "sha256:ops",
+        f"{environment.project}-ops-worker:latest",
+    ] in host_calls
+    assert compose_calls == [["up", "-d", "--wait", "--no-build", "ops-worker"]]
 
 
 def test_provider_receipt_is_checksum_bound_and_model_bound(tmp_path: Path) -> None:
@@ -173,4 +211,3 @@ def test_receipt_above_cost_limit_fails_closed(tmp_path: Path) -> None:
         validate_provider_receipt(
             receipt, phase="preflight", git_commit="commit", manifest=manifest
         )
-
