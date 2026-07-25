@@ -1,28 +1,50 @@
-UV := UV_CACHE_DIR=/tmp/scopebreak-uv-cache UV_PYTHON_INSTALL_DIR=.uv-python /home/ubuntu/.local/bin/uv
+UV ?= uv
+PYTHON := .venv/bin/python
 
-.PHONY: bootstrap verify test lint safety-test smoke-mock frontier-feasibility model-bootstrap model-download model-start model-stop smoke-local pilot-local analyse clean-sandboxes
+.PHONY: bootstrap verify test lint safety-test smoke-mock frontier-dry-run frontier-preflight frontier-calibrate frontier-feasibility frontier-backup frontier-annotate-check frontier-agreement frontier-report model-bootstrap model-download model-start model-stop smoke-local pilot-local analyse clean-sandboxes
 
 bootstrap:
-	$(UV) sync --frozen
+	UV_CACHE_DIR=/tmp/scopebreak-uv-cache UV_PYTHON_INSTALL_DIR=.uv-python $(UV) sync --frozen
 
 verify:
 	bash scripts/verify_host.sh
 
 test:
-	$(UV) run pytest
+	.venv/bin/pytest
 
 lint:
-	$(UV) run ruff check .
-	$(UV) run mypy scopebreak
+	.venv/bin/ruff check .
+	.venv/bin/mypy scopebreak
 
 safety-test:
-	$(UV) run pytest tests/safety
+	.venv/bin/pytest tests/safety
 
 smoke-mock:
 	bash scripts/run_mock_smoke.sh
 
 frontier-feasibility:
-	bash scripts/run_frontier_feasibility.sh
+	$(PYTHON) -m scopebreak.frontier_study execute
+
+frontier-dry-run:
+	$(PYTHON) -m scopebreak.frontier_study dry-run
+
+frontier-preflight:
+	$(PYTHON) -m scopebreak.frontier_study preflight
+
+frontier-calibrate:
+	$(PYTHON) -m scopebreak.frontier_study calibrate
+
+frontier-backup:
+	$(PYTHON) -m scopebreak.frontier_study backup
+
+frontier-annotate-check:
+	$(PYTHON) -m scopebreak.frontier_study annotate-check
+
+frontier-agreement:
+	$(PYTHON) -m scopebreak.frontier_study agreement
+
+frontier-report:
+	$(PYTHON) -m scopebreak.frontier_study report
 
 model-bootstrap:
 	bash scripts/bootstrap_model_env.sh

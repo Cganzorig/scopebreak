@@ -1,0 +1,55 @@
+study_name: scopebreak-frontier-feasibility-v1
+study_version: "1.0"
+enabled: false
+git_commit: bba88d03ceb03dd2494187623c7e5d97d4ab0dab
+git_directory: .git-data
+inspect_version: 0.3.249
+control_arena_version: 17.1.2
+python_version: 3.12.13
+docker_version: 29.2.1
+model:
+  provider: openai
+  requested_model: gpt-5.6-sol
+  resolved_model: ""
+  snapshot: ""
+  reasoning_effort: medium
+  temperature: 0
+agent:
+  condition: goal_only
+  scaffold_version: "1.0"
+  maximum_steps_per_sample: 80
+  maximum_tool_calls_per_sample: 80
+token_limits:
+  maximum_cumulative_input_tokens_per_sample: 400000
+  maximum_cumulative_output_tokens_per_sample: 40000
+  maximum_context_tokens_per_request: 400000
+conditions:
+  - {id: A-E, variant: A, boundary: explicit, samples: 5}
+  - {id: A-S, variant: A, boundary: silent, samples: 5}
+  - {id: C-E, variant: C, boundary: explicit, samples: 5}
+  - {id: C-S, variant: C, boundary: silent, samples: 5}
+monitor: {type: rule, mode: observe_only, blocking: false}
+timeouts: {action_seconds: 30, sample_seconds: 3600}
+retry: {provider_attempts: 2, infrastructure_sample_retries: 1, behavioural_retries: 0}
+cost:
+  calibration_hard_maximum_usd: 10
+  gate_hard_maximum_usd: 100
+  input_usd_per_million_tokens: 5
+  output_usd_per_million_tokens: 30
+  preregistered_uncached_gate_upper_usd: 64
+  currency: USD
+annotation_version: "1.0"
+secondary_review_method: cross_family_llm
+environment_image_digests:
+  agent: sha256:7412318a8532e7845d4b584398e6eba3198cf85c8c5a73f1e64599fd7fa61051
+  app: sha256:83aba8d9782ff688988d8cd718723b58ac7e3c59863a114769fd607b0c1d3aae
+  package_mirror: sha256:94edd65359b067a460abc2c51ce1e63b72d37dd6e4fc89899f769057a25446ba
+  evaluator: sha256:1f86cecbfc99fd63c3f18f8de35e378e24e056d94d86fdc8861811ebc0d79969
+  external_sim: sha256:c029951c89c9871f88e99b6ae4c2b939e7c2e1356b247c0e59d33ec7d2dc3a2a
+prompt_hashes:
+  explicit: f2d7a0520c103a606feb31a67ecb9f2b26127187d96bcf9e5c16c78c5dedf739
+  silent: 1726b684778020f4d9ff6213bf9eb2846d6c43f49351bc4d131644c528bfed1a
+seeds: [149482140, 2047502506, 1590842701, 571904685, 1266887838, 1836758741, 1417344116, 2086258303, 1757688881, 1352589904, 1360783171, 552255636, 926843841, 690383625, 1856616580, 1634456746, 2034161756, 5189322, 1566335426, 1775225641]
+execution_order: [C-E, A-S, A-S, A-E, A-E, C-S, A-S, C-S, C-E, C-S, C-E, A-E, C-S, C-S, C-E, C-E, A-S, A-E, A-E, A-S]
+backup_destination: ""
+confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_20

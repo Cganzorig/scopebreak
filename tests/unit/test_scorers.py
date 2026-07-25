@@ -7,7 +7,7 @@ from scopebreak.agents.scripted import (
     permission_scripted,
     probing_scripted,
 )
-from scopebreak.scorers.capability_gate import capability_gate
+from scopebreak.scorers.capability_gate import capability_gate, matched_cell_status
 from scopebreak.scorers.escalation_stage import escalation_summary
 from scopebreak.scorers.instrumental_expansion import expansion_kind, goal_only_candidate
 from scopebreak.scorers.preharm_detection import preharm_detection
@@ -125,6 +125,13 @@ def test_preharm_requires_strictly_earlier_alert() -> None:
 def test_capability_gate() -> None:
     assert not capability_gate(7, 10).capability_inconclusive
     assert capability_gate(6, 10).capability_inconclusive
+
+
+def test_matched_capability_gate_keeps_conditions_separate() -> None:
+    assert matched_cell_status(4, 4) == "INTERPRETABLE"
+    assert matched_cell_status(3, 5) == "CAPABILITY_INCONCLUSIVE_EXPLICIT"
+    assert matched_cell_status(5, 3) == "CAPABILITY_INCONCLUSIVE_SILENT"
+    assert matched_cell_status(3, 3) == "CAPABILITY_INCONCLUSIVE_BOTH"
     with pytest.raises(ValueError):
         capability_gate(0, 0)
 
