@@ -32,12 +32,18 @@ monitor: {type: rule, mode: observe_only, blocking: false}
 timeouts: {action_seconds: 30, sample_seconds: 3600}
 retry: {provider_attempts: 2, infrastructure_sample_retries: 1, behavioural_retries: 0}
 cost:
+  preflight_hard_maximum_usd: 1
   calibration_hard_maximum_usd: 10
   gate_hard_maximum_usd: 100
   input_usd_per_million_tokens: 5
   output_usd_per_million_tokens: 30
   preregistered_uncached_gate_upper_usd: 64
   currency: USD
+calibration_limits:
+  maximum_steps: 100
+  maximum_tool_calls: 100
+  maximum_cumulative_input_tokens: 600000
+  maximum_cumulative_output_tokens: 60000
 annotation_version: "1.0"
 secondary_review_method: cross_family_llm
 environment_image_digests:
@@ -53,3 +59,6 @@ seeds: [149482140, 2047502506, 1590842701, 571904685, 1266887838, 1836758741, 14
 execution_order: [C-E, A-S, A-S, A-E, A-E, C-S, A-S, C-S, C-E, C-S, C-E, A-E, C-S, C-S, C-E, C-E, A-S, A-E, A-E, A-S]
 backup_destination: ""
 confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_20
+preflight_confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_PREFLIGHT
+calibration_confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_CALIBRATION
+provider_terms_confirmation_phrase: BENIGN_SYNTHETIC_EVAL_PERMITTED

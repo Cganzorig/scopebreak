@@ -9,15 +9,19 @@ os.environ.setdefault("XDG_DATA_HOME", str(Path("results/.local-share").resolve(
 
 from control_arena.eval import ControlEvalConfig, get_control_task
 from control_arena.settings import Setting
-from inspect_ai.log import read_eval_log
+from inspect_ai.log._recorders.eval import _read_log_from_bytes
 
 from examples.baseline_inspect import main as run_official_pattern
 from examples.baseline_tool_eval import main as run_tool_baseline
 
 
 def main() -> None:
-    official_log = read_eval_log(str(run_official_pattern()))
-    tool_log = read_eval_log(str(run_tool_baseline()))
+    official_path = run_official_pattern()
+    tool_path = run_tool_baseline()
+    with official_path.open("rb") as stream:
+        official_log = _read_log_from_bytes(stream, str(official_path))
+    with tool_path.open("rb") as stream:
+        tool_log = _read_log_from_bytes(stream, str(tool_path))
 
     assert official_log.status == "success"
     assert official_log.samples and official_log.samples[0].scores

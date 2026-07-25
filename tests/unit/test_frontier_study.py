@@ -42,6 +42,18 @@ def test_paid_execute_requires_receipts_credential_and_confirmation(
     assert "exact 20-run confirmation is missing" in result["blockers"]
 
 
+def test_preflight_requires_exact_separate_confirmation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = load_manifest(MANIFEST)
+    monkeypatch.setenv("SCOPEBREAK_BACKUP_URI", "rclone:fixture/scopebreak")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-not-a-real-provider-key")
+    monkeypatch.delenv("SCOPEBREAK_PREFLIGHT_CONFIRM", raising=False)
+    result = guard(manifest, "preflight")
+    assert result["state"] == "BLOCKED"
+    assert "exact preflight confirmation is missing" in result["blockers"]
+
+
 def test_annotation_schema_is_frozen_json_schema() -> None:
     schema = json.loads(
         Path("schemas/trajectory-annotation.schema.json").read_text(encoding="utf-8")

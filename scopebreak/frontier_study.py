@@ -18,6 +18,15 @@ from scopebreak.backup import (
     upload_guarded_archive,
     validate_restore_receipt,
 )
+from scopebreak.frontier_provider import (
+    FrontierProvider,
+    FrontierRunError,
+    InspectOpenAIProvider,
+    new_paid_run_dir,
+    save_provider_receipt,
+    validate_provider_receipt,
+    write_checksum,
+)
 
 EXPECTED_CELLS = {
     "A-E": ("A", "explicit"),
@@ -35,6 +44,40 @@ def current_commit() -> str:
         capture_output=True,
         text=True,
     ).stdout.strip()
+
+
+def worktree_is_clean() -> bool:
+    return not subprocess.run(
+        ["git", "--git-dir=.git-data", "--work-tree=.", "status", "--porcelain"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+def manifest_binding_is_valid(manifest: dict[str, Any]) -> bool:
+    parent = subprocess.run(
+        ["git", "--git-dir=.git-data", "--work-tree=.", "rev-parse", "HEAD^"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    changed = subprocess.run(
+        [
+            "git",
+            "--git-dir=.git-data",
+            "--work-tree=.",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            "HEAD",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.splitlines()
+    return manifest.get("git_commit") == parent and changed == ["configs/frontier-study-v1.yaml"]
 
 
 def load_manifest(path: Path) -> dict[str, Any]:
@@ -66,6 +109,16 @@ def load_manifest(path: Path) -> dict[str, Any]:
         errors.append("production cumulative token limits are below preregistered defaults")
     if data.get("cost", {}).get("gate_hard_maximum_usd", 101) > 100:
         errors.append("gate hard cost exceeds $100")
+    if data.get("cost", {}).get("preflight_hard_maximum_usd", 0) <= 0:
+        errors.append("preflight hard cost must be positive")
+    calibration = data.get("calibration_limits", {})
+    if calibration != {
+        "maximum_steps": 100,
+        "maximum_tool_calls": 100,
+        "maximum_cumulative_input_tokens": 600000,
+        "maximum_cumulative_output_tokens": 60000,
+    }:
+        errors.append("calibration limits must match the frozen generous limits")
     expected_hashes = {
         c.value: hashlib.sha256(task_prompt(c).encode()).hexdigest()
         for c in (BoundaryCondition.EXPLICIT, BoundaryCondition.SILENT)
@@ -90,6 +143,10 @@ def guard(manifest: dict[str, Any], phase: str) -> dict[str, Any]:
     if not manifest.get("environment_image_digests"):
         blockers.append("environment image digests are not frozen")
     if phase in PAID_PHASES:
+        if not worktree_is_clean():
+            blockers.append("paid execution requires a clean worktree")
+        if not manifest_binding_is_valid(manifest):
+            blockers.append("study manifest is not bound to the implementation commit")
         restore_receipt = os.getenv("SCOPEBREAK_BACKUP_RESTORE_RECEIPT", "")
         try:
             validate_restore_receipt(Path(restore_receipt), current_commit())
@@ -113,10 +170,41 @@ def guard(manifest: dict[str, Any], phase: str) -> dict[str, Any]:
         }.get(model.get("provider"), "")
         if not credential or not os.getenv(credential):
             blockers.append("trusted-host provider credential is unavailable")
-    if phase == "calibrate" and not os.getenv("SCOPEBREAK_PREFLIGHT_RECEIPT"):
-        blockers.append("verified preflight receipt is missing")
+    if phase == "preflight" and os.getenv("SCOPEBREAK_PREFLIGHT_CONFIRM") != manifest.get(
+        "preflight_confirmation_phrase"
+    ):
+        blockers.append("exact preflight confirmation is missing")
+    if phase == "preflight" and os.getenv("SCOPEBREAK_PROVIDER_TERMS_CONFIRM") != manifest.get(
+        "provider_terms_confirmation_phrase"
+    ):
+        blockers.append("provider terms attestation is missing")
+    if phase == "calibrate":
+        preflight_receipt = Path(os.getenv("SCOPEBREAK_PREFLIGHT_RECEIPT", ""))
+        try:
+            validate_provider_receipt(
+                preflight_receipt,
+                phase="preflight",
+                git_commit=current_commit(),
+                manifest=manifest,
+            )
+        except (OSError, ValueError, json.JSONDecodeError):
+            blockers.append("verified preflight receipt is missing")
+        if os.getenv("SCOPEBREAK_CALIBRATION_CONFIRM") != manifest.get(
+            "calibration_confirmation_phrase"
+        ):
+            blockers.append("exact calibration confirmation is missing")
     if phase == "execute":
-        if not os.getenv("SCOPEBREAK_CALIBRATION_RECEIPT"):
+        if manifest.get("enabled") is not True:
+            blockers.append("20-run execution remains disabled")
+        calibration_receipt = Path(os.getenv("SCOPEBREAK_CALIBRATION_RECEIPT", ""))
+        try:
+            validate_provider_receipt(
+                calibration_receipt,
+                phase="calibration",
+                git_commit=current_commit(),
+                manifest=manifest,
+            )
+        except (OSError, ValueError, json.JSONDecodeError):
             blockers.append("passing calibration receipt is missing")
         if os.getenv("SCOPEBREAK_FRONTIER_CONFIRM") != manifest["confirmation_phrase"]:
             blockers.append("exact 20-run confirmation is missing")
@@ -127,6 +215,92 @@ def guard(manifest: dict[str, Any], phase: str) -> dict[str, Any]:
         "samples": 20,
         "api_request_made": False,
     }
+
+
+def _sanitise_provider_error(error: BaseException) -> str:
+    message = f"{type(error).__name__}: {error}"
+    credential = os.getenv("OPENAI_API_KEY", "")
+    return message.replace(credential, "[REDACTED]") if credential else message
+
+
+def _run_paid_provider_phase(
+    phase: str, manifest: dict[str, Any], *, provider: FrontierProvider | None = None
+) -> tuple[Path, dict[str, Any]]:
+    if phase not in {"preflight", "calibrate"}:
+        raise ValueError("only preflight and calibration are implemented")
+    adapter = provider or InspectOpenAIProvider()
+    output_dir = new_paid_run_dir(phase)
+    output_dir.parent.mkdir(parents=True, exist_ok=True)
+    resolved_config = {**manifest, "phase": phase, "executing_git_commit": current_commit()}
+    output_dir.mkdir(parents=True, exist_ok=False)
+    (output_dir / "resolved-config.json").write_text(
+        json.dumps(resolved_config, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    write_checksum(output_dir / "resolved-config.json")
+    if phase == "calibrate":
+        prompt = task_prompt(BoundaryCondition.EXPLICIT)
+        (output_dir / "task-prompt.txt").write_text(prompt, encoding="utf-8")
+        write_checksum(output_dir / "task-prompt.txt")
+        isolation = subprocess.run(
+            ["bash", "scripts/verify_isolation.sh"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        (output_dir / "isolation.log").write_text(
+            isolation.stdout + isolation.stderr, encoding="utf-8"
+        )
+        if isolation.returncode != 0:
+            raise FrontierRunError("isolation verification failed before calibration")
+    try:
+        result = (
+            adapter.preflight(manifest, output_dir / "provider")
+            if phase == "preflight"
+            else adapter.calibrate(manifest, output_dir / "provider")
+        )
+        if phase == "calibrate":
+            preflight = validate_provider_receipt(
+                Path(os.environ["SCOPEBREAK_PREFLIGHT_RECEIPT"]),
+                phase="preflight",
+                git_commit=current_commit(),
+                manifest=manifest,
+            )
+            if result.resolved_model != preflight["resolved_model"]:
+                raise FrontierRunError(
+                    "calibration resolved model differs from the approved preflight model"
+                )
+        receipt_path = save_provider_receipt(result, output_dir, current_commit())
+        receipt = validate_provider_receipt(
+            receipt_path,
+            phase=phase,
+            git_commit=current_commit(),
+            manifest=manifest,
+        )
+    except Exception as error:
+        failure = {
+            "phase": phase,
+            "git_commit": current_commit(),
+            "status": "FAILED_CLOSED",
+            "error": _sanitise_provider_error(error),
+            "api_request_may_have_been_made": True,
+        }
+        failure_path = output_dir / f"{phase}-failure.json"
+        failure_path.write_text(json.dumps(failure, indent=2), encoding="utf-8")
+        write_checksum(failure_path)
+        backup_uri = (
+            f"{os.environ['SCOPEBREAK_BACKUP_URI'].rstrip('/')}/{output_dir.name}"
+        )
+        upload_guarded_archive(backup_uri, Path.cwd(), output_dir)
+        raise FrontierRunError(failure["error"]) from error
+    backup_uri = f"{os.environ['SCOPEBREAK_BACKUP_URI'].rstrip('/')}/{output_dir.name}"
+    backup = upload_guarded_archive(backup_uri, Path.cwd(), output_dir)
+    receipt["incremental_backup"] = {
+        "verified": backup["remote_copy_verified"],
+        "archive_sha256": backup["archive_sha256"],
+        "backup_run_id": backup["backup_run_id"],
+        "destination": backup_uri,
+    }
+    return receipt_path, receipt
 
 
 def main() -> None:
@@ -223,10 +397,14 @@ def main() -> None:
         receipt_path.parent.mkdir(parents=True, exist_ok=True)
         receipt_path.write_text(json.dumps(receipt, indent=2), encoding="utf-8")
         print(json.dumps(receipt, indent=2))
-    if args.phase in PAID_PHASES:
+    if args.phase in {"preflight", "calibrate"}:
+        receipt_path, receipt = _run_paid_provider_phase(args.phase, load_manifest(args.manifest))
+        print(f"receipt_path={receipt_path}")
+        print(json.dumps(receipt, indent=2))
+    if args.phase == "execute":
         raise SystemExit(
-            "Paid adapter remains disarmed until its phase implementation "
-            "and receipts are verified."
+            "The 20-run adapter remains disabled; this implementation authorises only "
+            "preflight and one separately confirmed calibration."
         )
 
 

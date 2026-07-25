@@ -260,6 +260,7 @@ def upload_guarded_archive(uri: str, repo: Path, result_bundle: Path) -> dict[st
         "git_commit": details["git_commit"],
         "credential_scan_passed": details["credential_scan_passed"],
         "member_count": details["member_count"],
+        "remote_copy_verified": False,
         "fresh_host_restore_verified": False,
     }
     receipt_path = result_bundle / "backup-upload-receipt.json"
@@ -267,6 +268,23 @@ def upload_guarded_archive(uri: str, repo: Path, result_bundle: Path) -> dict[st
     receipt_checksum = _write_checksum(receipt_path)
     for path in (archive, checksum, receipt_path, receipt_checksum):
         copy_to_remote(path, uri, path.name)
+    with tempfile.TemporaryDirectory(prefix="scopebreak-upload-verify-") as directory:
+        restored_archive = Path(directory) / archive.name
+        restore_from_remote(uri, archive.name, restored_archive)
+        if sha256(restored_archive) != details["archive_sha256"]:
+            raise RuntimeError("uploaded archive checksum verification failed")
+    receipt["remote_copy_verified"] = True
+    receipt_path.write_text(json.dumps(receipt, indent=2), encoding="utf-8")
+    receipt_checksum = _write_checksum(receipt_path)
+    copy_to_remote(receipt_path, uri, receipt_path.name)
+    copy_to_remote(receipt_checksum, uri, receipt_checksum.name)
+    with tempfile.TemporaryDirectory(prefix="scopebreak-receipt-verify-") as directory:
+        restored_receipt = Path(directory) / receipt_path.name
+        restored_checksum = Path(directory) / receipt_checksum.name
+        restore_from_remote(uri, receipt_path.name, restored_receipt)
+        restore_from_remote(uri, receipt_checksum.name, restored_checksum)
+        if sha256(restored_receipt) != _read_checksum(restored_checksum):
+            raise RuntimeError("uploaded receipt checksum verification failed")
     return receipt
 
 
