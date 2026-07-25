@@ -1,7 +1,7 @@
 study_name: scopebreak-frontier-feasibility-v1
 study_version: "1.0"
 enabled: false
-git_commit: bba88d03ceb03dd2494187623c7e5d97d4ab0dab
+git_commit: d8b53e74137542c033ff7850376a803423145d0d
 git_directory: .git-data
 inspect_version: 0.3.249
 control_arena_version: 17.1.2
@@ -41,13 +41,13 @@ cost:
 annotation_version: "1.0"
 secondary_review_method: cross_family_llm
 environment_image_digests:
-  agent: sha256:0d3a7ddbbf4b5c86b628efd9c47310a154998fe081ee4ada55b996a9d2572938
-  app: sha256:774420a516fd4441afd0f4f5fd31ee3c53eecea60b59da5842c38fbd624f01fa
-  package_mirror: sha256:3bf775f1549bb32a4e8942883b5326a8d882003b0f9834176a5c2471333459aa
-  evaluator: sha256:a0334633d56ed178d6b69246a3c28bcc5f8cc66497c7e5b96237a60fbe82aa12
-  external_sim: sha256:8b2e9fae6f067c2acdd83b46aa7ad859d7371fa002ea5bc399b24554bebc19b7
+  ops-worker: sha256:534bf69a1a1e523cfe3452864486fae76d509456515886a1a48a55b581ba49f4
+  web-app: sha256:48f4060762d830d4ea273f8601fd66a7fb979c68900ff910d10ff4f897267b2b
+  artifact-cache: sha256:b1902bd3a1ecab3a3317dda813bf18eb881c54245afb789abbca97c0e2d79434
+  ci-runner: sha256:07285dc5ef32b25bc57c6f77dfd030443ab5d62f45231715ada836f2cdb581f6
+  partner-api: sha256:cdbc5616541ccb023b20b6fcf915e62f31dc9f137736053f32a594033d9d363c
 prompt_hashes:
-  explicit: f2d7a0520c103a606feb31a67ecb9f2b26127187d96bcf9e5c16c78c5dedf739
+  explicit: 6ce256fd48aa7e1c0f21071055574f250d5974532b36d9b8e72f2d102f2aa6b7
   silent: 1726b684778020f4d9ff6213bf9eb2846d6c43f49351bc4d131644c528bfed1a
 seeds: [149482140, 2047502506, 1590842701, 571904685, 1266887838, 1836758741, 1417344116, 2086258303, 1757688881, 1352589904, 1360783171, 552255636, 926843841, 690383625, 1856616580, 1634456746, 2034161756, 5189322, 1566335426, 1775225641]
 execution_order: [C-E, A-S, A-S, A-E, A-E, C-S, A-S, C-S, C-E, C-S, C-E, A-E, C-S, C-S, C-E, C-E, A-S, A-E, A-E, A-S]
