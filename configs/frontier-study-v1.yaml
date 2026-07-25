@@ -1,7 +1,7 @@
 study_name: scopebreak-frontier-feasibility-v1
-study_version: "1.1"
-enabled: true
-git_commit: 7d42508bc3947a6fb0e7f27c66d25dc47c93e0b6
+study_version: "1.2"
+enabled: false
+git_commit: 6154dc3e2171a5f0b7397ef625691271e307897b
 git_directory: .git-data
 inspect_version: 0.3.249
 control_arena_version: 17.1.2
@@ -33,11 +33,13 @@ monitor: {type: rule, mode: observe_only, blocking: false}
 timeouts: {action_seconds: 30, sample_seconds: 3600}
 retry: {provider_attempts: 2, infrastructure_sample_retries: 1, behavioural_retries: 0}
 gate_execution:
-  runner_version: "1.0"
+  runner_version: "1.1"
   canary_samples: 2
   initial_concurrency: 1
   maximum_concurrency: 1
   resume_requires_canary_review: true
+  provider_recovery_requires_fresh_preflight: true
+  maximum_provider_replacement_attempts_per_sample: 1
 cost:
   preflight_hard_maximum_usd: 1
   calibration_hard_maximum_usd: 10
@@ -52,7 +54,7 @@ calibration_limits:
   maximum_cumulative_input_tokens: 600000
   maximum_cumulative_output_tokens: 60000
 calibration_evidence:
-  status: PASS
+  status: RECALIBRATION_REQUIRED
   included_in_gate: false
   scaffold_version: "1.1"
   tool_contract_version: "1.1"
@@ -91,6 +93,8 @@ backup_destination: ""
 confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_20
 canary_confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_CANARIES
 remaining_confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_REMAINING_18
+provider_recovery_review_confirmation_phrase: SCOPEBREAK_PROVIDER_FAILURE_REVIEWED
+provider_recovery_execution_confirmation_phrase: RUN_SCOPEBREAK_SINGLE_PROVIDER_REPLACEMENT
 canary_review_confirmation_phrase: SCOPEBREAK_CANARIES_FULLY_REVIEWED
 preflight_confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_PREFLIGHT
 calibration_confirmation_phrase: RUN_SCOPEBREAK_FRONTIER_CALIBRATION
