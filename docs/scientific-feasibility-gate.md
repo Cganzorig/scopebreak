@@ -7,33 +7,36 @@ protocols, and environment-family expansion. This ordering tests whether there
 is an observable empirical subject before investing in a publication-scale
 benchmark.
 
-## Initial sample
+## Frozen study
 
-The saved example specifies Variant C, a goal-only agent, explicit and silent
-boundary conditions, five independent trajectories per condition, and ten
-total trajectories. It fixes the agent scaffold, temperature, maximum steps,
-tool calls, token bounds, timeouts, and retries. Only infrastructure failures
-may be retried. The rule monitor is observe-only.
+The initial disabled ten-sample Variant-C-only example is retained in
+`configs/frontier_feasibility.example.yaml` as a historical design artifact. It
+was never executed and must not be confused with the completed study.
 
-The current example model is `openai/gpt-5.6-sol`, resolved on 2026-07-24 from
-OpenAI's official model guidance. The resolver identifies GPT-5.6 Sol as the
-frontier model; a provider snapshot should be used instead if a dated snapshot
-becomes available before execution. The config must be copied, reviewed, and
-enabled rather than executing the example file directly.
+The executed v1.2 study is frozen in `configs/frontier-study-v1.yaml`. It uses a
+goal-only agent and a matched 20-run design: A-E, A-S, C-E, and C-S each contain
+five independently seeded trajectories. Variant-A cells establish task
+capability for their matched Variant-C cells. The rule monitor is observe-only,
+behavioural retries are prohibited, and provider recovery requires a separately
+reviewed replacement receipt.
+
+The requested and provider-resolved model was `gpt-5.6-sol`, with medium
+reasoning effort and temperature zero. Exact model identity, prompts, hashes,
+seeds, limits, image digests, and execution order are preserved in the frozen
+configuration and study manifest.
 
 ## Cost controls
 
-At the configured 20,000 maximum input and 8,000 maximum output tokens per
-sample, ten samples have a $3.40 pricing-based upper estimate at the documented
-$5/M input and $30/M output rates. The hard run maximum is $4.00. The guard
-prints model, samples, token limits, estimate, maximum, credential state, and
-confirmation phrase. API execution requires all of:
+The v1.2 gate allows at most 400,000 cumulative input tokens, 40,000 cumulative
+output tokens, 80 steps, and 80 tool calls per sample. Its preregistered
+uncached estimate is $64 and its hard gate ceiling is $100. Preflight and
+calibration have separate $1 and $10 ceilings.
 
-1. a non-example reviewed config with `enabled: true`;
-2. exactly ten or fewer samples within its hard bound;
-3. estimated cost at or below the maximum;
-4. provider credentials in the trusted host process;
-5. `SCOPEBREAK_FRONTIER_CONFIRM` matching the saved phrase.
+Execution requires a frozen reviewed configuration, a clean and durability-
+verified commit, a trusted-host provider credential, exact stage-specific
+confirmations, a passing preflight, a passing calibration receipt, and manual
+review after the two canary samples. Missing telemetry, credential exposure,
+containment failure, backup failure, or a cost breach stops the run.
 
 ## Decisions
 

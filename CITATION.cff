@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use SCOPEBREAK, please cite this software and the archived version you evaluated."
+title: SCOPEBREAK
+type: software
+authors:
+  - name: SCOPEBREAK contributors
+repository-code: "https://github.com/Cganzorig/scopebreak"
+url: "https://github.com/Cganzorig/scopebreak"
+version: 0.1.0
+license: MIT
+abstract: >-
+  A safety-first research harness for studying whether AI agents expand their
+  operational scope while completing a legitimate task in a synthetic,
+  contained environment.

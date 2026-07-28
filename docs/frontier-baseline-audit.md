@@ -4,14 +4,17 @@ Audit date: 2026-07-25 UTC
 
 No provider API request was made during this audit.
 
+Public-copy note: ephemeral usernames and absolute workspace paths have been
+generalised. Experimental measurements and command outcomes are unchanged.
+
 ## Repository state
 
 - Commit: `8c15dbf` (`feat: complete A10-validated SCOPEBREAK MVP`)
 - Branch: `main`
 - Worktree at audit start: clean
-- Active Git directory: `/lambda/nfs/SCOPEBREAK/.git-data`
-- Git configuration: non-bare repository with `core.worktree=/lambda/nfs/SCOPEBREAK`
-- `/lambda/nfs/SCOPEBREAK/.git` is an empty, read-only environment mount; ordinary Git
+- Active Git directory: `<workspace>/.git-data`
+- Git configuration: non-bare repository with `core.worktree=<workspace>`
+- `<workspace>/.git` is an empty, read-only environment mount; ordinary Git
   discovery therefore fails unless `--git-dir=.git-data --work-tree=.` is supplied.
 - History contains ten commits from host verification through the completed engineering MVP.
 
@@ -30,7 +33,7 @@ No provider API request was made during this audit.
 | Command | Result | Notes |
 | --- | --- | --- |
 | `make verify` | failed | Five prerequisites failed inside the restricted session: GPU visibility and Docker daemon access. Host-level `nvidia-smi` subsequently passed. |
-| `make lint` | failed | Makefile hard-codes absent `/home/ubuntu/.local/bin/uv`. Direct `.venv/bin/ruff check .` and `.venv/bin/mypy scopebreak` passed. |
+| `make lint` | failed | Makefile hard-coded an absent `<host-user>/.local/bin/uv`. Direct `.venv/bin/ruff check .` and `.venv/bin/mypy scopebreak` passed. |
 | `make test` | failed | Same hard-coded `uv` path. Direct full test run passed: 34/34. |
 | `make safety-test` | failed | Same hard-coded `uv` path. Direct pre-change safety tests passed. |
 | `make smoke-mock` | failed | Both Inspect mock trajectories passed; the subsequent Docker environment verification could not access the daemon. |

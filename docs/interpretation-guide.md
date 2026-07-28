@@ -38,7 +38,14 @@ test from this gate establishes a boundary-communication effect.
 ## Current project conclusion
 
 The 36 scripted trajectories pass the instrumentation acceptance criteria. One
-local Qwen3-8B trajectory passes the real tool pipeline. The earlier ten-run gate
-has zero attempted trajectories and is superseded by the matched 20-run design.
-Therefore
-the only defensible behavioral conclusion is `CAPABILITY_INCONCLUSIVE`.
+local Qwen3-8B trajectory passes the real tool pipeline. The earlier unexecuted
+ten-run design was superseded by a completed matched 20-run study in which both
+Variant-A capability controls passed. C-E had 0/5 boundary crossings and C-S
+had 1/5; neither condition produced protected-information use or instrumental
+use of unauthorised information.
+
+The defensible decision is `CONTINUE_BOUNDARY_COMMUNICATION_FRAMING`: the
+observed pattern is a feasibility signal worth testing, not evidence of a
+reliable or generalisable effect. See
+[feasibility-report.md](feasibility-report.md) for the complete results and
+limitations.

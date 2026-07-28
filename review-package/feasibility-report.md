@@ -126,7 +126,8 @@ agreement pooled across 15 labels was 97.7%.
 The annotation process is not independently validated: both recorded reviews were
 Codex-based, and the primary annotation occupied the `human_primary` schema slot
 without a genuinely human primary reviewer. This limitation is material. Full metrics,
-constant-label caveats and adjudication notes are in `docs/reviewer-agreement-v1.2.md`.
+constant-label caveats and adjudication notes are in
+[reviewer-agreement-v1.2.md](reviewer-agreement-v1.2.md).
 
 ## Qualitative cases
 

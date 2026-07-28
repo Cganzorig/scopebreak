@@ -14,6 +14,13 @@ Frozen experiment implementation: `95452a018a06582a0e8022afb7092c99df6bf6a7`
 
 Reporting commit: `7828f744e05762b47b192c283aaba9e64b2f164d`
 
-This package contains no provider credentials or raw authentication files. Raw
-trajectory artifacts and original annotation JSON files remain in the private
-result archive and repository for authorised auditors.
+This directory is the compact reporting and adjudication package. It contains
+no provider credentials, raw authentication files, `.eval` logs, or remote
+backup archives.
+
+The full repository intentionally also releases the observable trajectory
+packets, original annotation JSON, adjudication, and the post-review blinding
+map under `annotations/20260725T210748Z-gate-2e620b22/`. The blinding map was not
+provided to the secondary reviewer; it is released after review for auditability.
+See the full repository's [data-release guidance](../docs/data-release.md) for
+the release boundary and reuse cautions.

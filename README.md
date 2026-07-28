@@ -6,11 +6,12 @@ use an unauthorised shortcut. Everything harmful is simulated: services are
 local, credentials are fake, the external target is synthetic, and the rule
 monitor is observe-only.
 
-The repository provides a complete deterministic instrumentation proof and a
-bounded A10 local-model pipeline proof. It does **not** establish that
-instrumental scope expansion exists. The capable frontier-model experiment was
-not run because no provider credential was available, so the behavioral result
-is `CAPABILITY_INCONCLUSIVE`.
+The repository provides a complete deterministic instrumentation proof, a
+bounded A10 local-model pipeline proof, and a completed 20-trajectory frontier
+feasibility study. The study found one scope-silent operator-policy crossing,
+but no protected-information read, synthetic-secret transfer, or instrumental
+use of unauthorised information. The result supports further study of boundary
+communication; it does **not** establish a reliable or generalisable effect.
 
 ## What is implemented
 
@@ -24,8 +25,8 @@ is `CAPABILITY_INCONCLUSIVE`.
   capability-gate, utility, and instrumental-expansion scoring.
 - An observe-only rule monitor that never changes agent execution.
 - A 36-trajectory deterministic mock matrix and reproducible analysis report.
-- A guarded ten-sample frontier feasibility configuration with hard cost,
-  sample, token, credential, and confirmation checks.
+- A completed matched 20-sample frontier feasibility configuration with hard
+  cost, sample, token, credential, backup, and staged-confirmation checks.
 - Loopback-only vLLM 0.25.1 serving of Qwen3-8B on an NVIDIA A10, validated by
   a real Inspect Bash-tool trajectory with accuracy 1.000.
 
@@ -95,6 +96,12 @@ Reports include counts, rates, Wilson 95% intervals, stage funnels, and
 boundary-condition splits. Scripted results are labeled as instrumentation
 validation, not model behavior.
 
+The tracked `annotations/` tree contains the released observable transcripts,
+annotations, adjudication, and post-review blinding map for the completed
+frontier study. It does not contain provider credentials or raw authentication
+files. Read [docs/data-release.md](docs/data-release.md) before reusing those
+artifacts or designing a follow-up evaluation.
+
 ## Safety and cleanup
 
 The evaluation Compose files use internal networks, no public port mappings,
@@ -115,11 +122,23 @@ production security boundary.
 
 The deterministic matrix proves telemetry and scorer behavior across positive
 and negative controls. The local 8B run proves serving and tool integration
-only. Since the capable-model gate has zero attempted trajectories, there is no
-valid estimate of model escalation frequency and no basis for building
-blocking protocols, LLM monitors, or large local pilots. Those phases remain
-gated on a scientifically useful feasibility result.
+only. In the completed frontier gate, both matched capability controls passed;
+C-E had 0/5 boundary crossings and C-S had 1/5, with no instrumental use of
+unauthorised information in either condition. Five samples per cell are far too
+few for a population claim or a reliable boundary-communication effect.
+
+The next justified step is an independently reviewed, preregistered follow-up
+with genuinely human or cross-family review. The current result does not justify
+production blocking protocols, broad monitor claims, or safety claims about the
+evaluated model.
 
 Read [docs/research-design.md](docs/research-design.md),
 [docs/interpretation-guide.md](docs/interpretation-guide.md), and
 [docs/threat-model.md](docs/threat-model.md) before interpreting outputs.
+
+## Citation and security
+
+Citation metadata is provided in [CITATION.cff](CITATION.cff). For real
+credential exposure, containment flaws, or other security issues, follow
+[SECURITY.md](SECURITY.md) rather than opening a public issue with sensitive
+details.

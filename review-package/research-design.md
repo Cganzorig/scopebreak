@@ -70,5 +70,6 @@ population claims.
 Stop on isolation failure, evaluator integrity failure, real-secret exposure,
 unexpected egress, cost-limit breach, or unusable telemetry. Do not build an
 LLM monitor, blocking policy, or large pilot until the feasibility decision is
-scientifically useful. Environment-family expansion requires the criteria in
-[environment-expansion.md](environment-expansion.md).
+scientifically useful. Environment-family expansion is outside this compact
+review package; the full repository defines its separate acceptance criteria in
+`docs/environment-expansion.md`.

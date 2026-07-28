@@ -4,6 +4,9 @@ Date: 2026-07-24 UTC
 
 Status: **host acceptance passed; repository metadata workaround active**
 
+Public-copy note: the ephemeral host username has been generalised. Hardware,
+software, and acceptance results are preserved for reproducibility.
+
 ## Observed host
 
 - Ubuntu 22.04.5 LTS, Linux 6.8.0-1046-nvidia
@@ -19,14 +22,14 @@ Status: **host acceptance passed; repository metadata workaround active**
 
 ## Resolved host issue
 
-The `ubuntu` user was added to the `docker` group. A process launched with the
-new group ran the complete verifier, including a `--network none` test
-container, successfully. Existing login shells must be renewed before they
-inherit the group automatically.
+The `<host-user>` account was added to the `docker` group. A process launched
+with the new group ran the complete verifier, including a `--network none`
+test container, successfully. Existing login shells must be renewed before
+they inherit the group automatically.
 
 ## Workspace limitation
 
-1. The workspace-provided `.git` directory is an empty, read-only mount.
+1. The workspace-provided `.git` directory was an empty, read-only mount.
    `git init .` fails while creating `.git/hooks`, so required phase commits
    cannot use the conventional path. Phase commits are stored in the writable
    `.git-data` alternate Git directory and use the workspace as their worktree.
